@@ -1,0 +1,13 @@
+[project]
+name = "vectorroute"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "faiss-cpu>=1.13.2",
+    "httpx>=0.28.1",
+    "mcp[cli]>=1.25.0",
+    "numpy>=2.4.1",
+    "ollama>=0.6.1",
+]
