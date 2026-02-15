@@ -1,4 +1,16 @@
 {
+  "type": "function",
+  "function": {
+    "name": "retrieve_document_by_id",
+    "description": "Retrieve a document by its filename.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "document_id": { "type": "string" }
+      },
+      "required": ["document_id"]
+    }
+  },
   "name": "retrieve_document_by_id",
   "short_description": "Retrieve a document by its filename.",
   "long_description": "Fetches the full contents of a document from the documents folder using its filename as an identifier.",

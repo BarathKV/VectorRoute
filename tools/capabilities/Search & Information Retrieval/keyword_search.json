@@ -1,4 +1,17 @@
 {
+  "type": "function",
+  "function": {
+    "name": "keyword_search",
+    "description": "Search documents using keyword matching.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["query", "source"]
+    }
+  },
   "name": "keyword_search",
   "short_description": "Search documents using keyword matching.",
   "long_description": "Searches documents in the local documents folder using exact keyword matching to find files containing the query.",

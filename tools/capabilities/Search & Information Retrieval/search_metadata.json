@@ -1,4 +1,17 @@
 {
+  "type": "function",
+  "function": {
+    "name": "search_metadata",
+    "description": "Search documents using file metadata.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "metadata_field": { "type": "string" },
+        "value": { "type": "string" }
+      },
+      "required": ["metadata_field", "value"]
+    }
+  },
   "name": "search_metadata",
   "short_description": "Search documents using file metadata.",
   "long_description": "Searches document metadata such as filename, size, or last modified date to retrieve matching files.",

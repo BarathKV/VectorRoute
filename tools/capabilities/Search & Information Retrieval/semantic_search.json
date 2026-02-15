@@ -1,4 +1,17 @@
 {
+  "type": "function",
+  "function": {
+    "name": "semantic_search",
+    "description": "Search documents based on conceptual similarity.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "corpus": { "type": "string" }
+      },
+      "required": ["query", "corpus"]
+    }
+  },
   "name": "semantic_search",
   "short_description": "Search documents based on conceptual similarity.",
   "long_description": "Searches documents by comparing overlapping terms between the user query and document content to approximate semantic similarity.",

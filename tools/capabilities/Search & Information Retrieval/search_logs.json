@@ -1,4 +1,17 @@
 {
+  "type": "function",
+  "function": {
+    "name": "search_logs",
+    "description": "Search system log files.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "log_level": { "type": "string" }
+      },
+      "required": ["query", "log_level"]
+    }
+  },
   "name": "search_logs",
   "short_description": "Search system log files.",
   "long_description": "Searches log files for entries matching a keyword and log severity level.",

@@ -1,4 +1,17 @@
 {
+  "type": "function",
+  "function": {
+    "name": "search_recent_documents",
+    "description": "Search recently modified documents.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "days": { "type": "integer" }
+      },
+      "required": ["query", "days"]
+    }
+  },
   "name": "search_recent_documents",
   "short_description": "Search recently modified documents.",
   "long_description": "Retrieves documents that were modified recently and contain the specified search query.",

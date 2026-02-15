@@ -1,4 +1,17 @@
 {
+  "type": "function",
+  "function": {
+    "name": "ranked_search",
+    "description": "Search documents and rank results by relevance.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": { "type": "string" },
+        "limit": { "type": "integer" }
+      },
+      "required": ["query", "limit"]
+    }
+  },
   "name": "ranked_search",
   "short_description": "Search documents and rank results by relevance.",
   "long_description": "Performs a search across documents and ranks results based on the frequency of query terms.",

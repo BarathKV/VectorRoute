@@ -1,4 +1,16 @@
 {
+  "type": "function",
+  "function": {
+    "name": "search_documents_by_title",
+    "description": "Search documents by title.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "title_query": { "type": "string" }
+      },
+      "required": ["title_query"]
+    }
+  },
   "name": "search_documents_by_title",
   "short_description": "Search documents by title.",
   "long_description": "Searches document titles to retrieve documents matching or similar to a given title.",
