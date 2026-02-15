@@ -1,0 +1,39 @@
+{
+  "type": "function",
+  "function": {
+    "name": "calculate_loan_emi",
+    "description": "Calculate the monthly EMI for a loan.",
+    "long_description": "Calculates the Equated Monthly Installment (EMI), total payment, and total interest for a loan based on principal amount, annual interest rate, and loan tenure.",
+    "domain": "Finance",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "principal": {
+          "type": "number",
+          "description": "Total loan amount"
+        },
+        "annual_interest_rate": {
+          "type": "number",
+          "description": "Annual interest rate in percentage"
+        },
+        "tenure_years": {
+          "type": "integer",
+          "description": "Loan tenure in years"
+        }
+      },
+      "required": ["principal", "annual_interest_rate", "tenure_years"]
+    },
+    "example_user_queries": [
+      "Calculate EMI for a loan of 10 lakhs at 8% for 20 years",
+      "What is the monthly EMI for a home loan?",
+      "EMI for 500000 loan at 7.5% interest",
+      "Calculate loan EMI",
+      "How much EMI do I need to pay monthly?",
+      "Loan repayment calculator",
+      "Monthly EMI for car loan",
+      "Calculate interest and EMI for loan",
+      "What is the EMI for my loan?",
+      "Loan EMI calculation"
+    ]
+  }
+}

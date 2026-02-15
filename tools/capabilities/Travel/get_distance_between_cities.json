@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_distance_between_cities",
+    "description": "Calculate distance between two cities.",
+    "long_description": "Calculates the geographical distance between two cities by converting city names into coordinates using an external mapping API and applying a standard distance formula.",
+    "domain": "Travel",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city_from": {
+          "type": "string",
+          "description": "Name of the starting city"
+        },
+        "city_to": {
+          "type": "string",
+          "description": "Name of the destination city"
+        }
+      },
+      "required": ["city_from", "city_to"]
+    },
+    "example_user_queries": [
+      "Distance between New York and London",
+      "How far is Paris from Berlin?",
+      "Calculate distance between Mumbai and Delhi",
+      "Distance between Chennai and Bangalore",
+      "How many kilometers between Tokyo and Osaka?",
+      "Find distance between two cities",
+      "Distance from San Francisco to Los Angeles",
+      "How far is Rome from Milan?",
+      "City-to-city distance calculator",
+      "Calculate travel distance"
+    ]
+  }
+}

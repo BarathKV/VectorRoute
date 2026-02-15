@@ -1,0 +1,39 @@
+{
+  "type": "function",
+  "function": {
+    "name": "convert_currency",
+    "description": "Convert an amount from one currency to another.",
+    "long_description": "Converts a monetary amount between two currencies using live exchange rates retrieved from an external finance API.",
+    "domain": "Finance",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "from_currency": {
+          "type": "string",
+          "description": "Source currency code (e.g., USD, EUR, INR)"
+        },
+        "to_currency": {
+          "type": "string",
+          "description": "Target currency code (e.g., USD, EUR, INR)"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of money to convert"
+        }
+      },
+      "required": ["from_currency", "to_currency", "amount"]
+    },
+    "example_user_queries": [
+      "Convert 100 USD to INR",
+      "How much is 50 EUR in USD?",
+      "Convert 1000 INR to EUR",
+      "What is the exchange value of 200 GBP in USD?",
+      "Convert currency from USD to JPY",
+      "How much is 75 euros in rupees?",
+      "Exchange 500 dollars to pounds",
+      "Currency conversion from CAD to USD",
+      "Convert money between currencies",
+      "Check exchange rate conversion"
+    ]
+  }
+}

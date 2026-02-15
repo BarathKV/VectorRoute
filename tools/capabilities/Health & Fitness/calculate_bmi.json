@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "calculate_bmi",
+    "description": "Calculate Body Mass Index (BMI).",
+    "long_description": "Calculates the Body Mass Index (BMI) using weight and height and classifies the result into standard health categories.",
+    "domain": "Health & Fitness",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "weight_kg": {
+          "type": "number",
+          "description": "Body weight in kilograms"
+        },
+        "height_cm": {
+          "type": "number",
+          "description": "Height in centimeters"
+        }
+      },
+      "required": ["weight_kg", "height_cm"]
+    },
+    "example_user_queries": [
+      "Calculate BMI for a person weighing 70 kg and height 170 cm",
+      "What is my BMI if I weigh 80 kg and am 175 cm tall?",
+      "BMI calculation",
+      "Check my body mass index",
+      "Is my BMI normal?",
+      "Calculate BMI using weight and height",
+      "Find BMI value",
+      "BMI for 65 kg and 160 cm",
+      "Body mass index calculator",
+      "Check health category using BMI"
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_weather_alerts_by_region",
+    "description": "Get active weather alerts for a region.",
+    "long_description": "Retrieves active weather warnings or alerts such as storms, heatwaves, or heavy rainfall for a specified region using an external weather API.",
+    "domain": "Weather",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "region": {
+          "type": "string",
+          "description": "City, state, or region to check for weather alerts"
+        }
+      },
+      "required": ["region"]
+    },
+    "example_user_queries": [
+      "Are there any weather alerts in California?",
+      "Check for storm warnings in Texas",
+      "Weather alerts for New York region",
+      "Is there any weather warning in Kerala?",
+      "Show active weather alerts for Florida",
+      "Are there flood alerts in Chennai?",
+      "Check severe weather warnings in London",
+      "Any weather alerts in Mumbai?",
+      "Show current weather warnings for my region",
+      "Is there a heatwave alert in Rajasthan?"
+    ]
+  }
+}

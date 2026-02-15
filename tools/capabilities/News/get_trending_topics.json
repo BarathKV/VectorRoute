@@ -1,0 +1,26 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_trending_topics",
+    "description": "Get trending news topics.",
+    "long_description": "Identifies trending news topics by analyzing frequently occurring keywords in recent news headlines fetched from an external news API.",
+    "domain": "News",
+    "parameters": {
+      "type": "object",
+      "properties": {},
+      "required": []
+    },
+    "example_user_queries": [
+      "What topics are trending in the news?",
+      "Show me trending news topics",
+      "What are people talking about in the news?",
+      "Current trending topics",
+      "Top news trends today",
+      "Trending news keywords",
+      "What’s trending right now?",
+      "Hot topics in the news",
+      "News trends today",
+      "Popular topics in recent news"
+    ]
+  }
+}

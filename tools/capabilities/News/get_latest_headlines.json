@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_latest_headlines",
+    "description": "Get latest news headlines by category.",
+    "long_description": "Fetches the most recent news headlines for a given category such as technology, business, sports, or health using an external news API.",
+    "domain": "News",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "category": {
+          "type": "string",
+          "description": "News category (e.g., technology, business, sports, health)"
+        }
+      },
+      "required": ["category"]
+    },
+    "example_user_queries": [
+      "Show me the latest technology news",
+      "Get business headlines",
+      "Latest sports news",
+      "What’s happening in health news?",
+      "Show current news headlines",
+      "Top headlines in technology",
+      "Latest updates in business",
+      "News headlines by category",
+      "Get today's top news",
+      "Show recent news articles"
+    ]
+  }
+}

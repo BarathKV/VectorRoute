@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "summarize_news_by_keyword",
+    "description": "Summarize recent news articles by keyword.",
+    "long_description": "Fetches recent news articles related to a specific keyword and provides short summaries of the articles using content from an external news API.",
+    "domain": "News",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "keyword": {
+          "type": "string",
+          "description": "Keyword to search for in news articles"
+        }
+      },
+      "required": ["keyword"]
+    },
+    "example_user_queries": [
+      "Summarize news about artificial intelligence",
+      "Give me a summary of recent climate change news",
+      "News summary for Tesla",
+      "Summarize articles about elections",
+      "What’s the latest news on inflation?",
+      "Give a short summary of news about space exploration",
+      "Summarize recent tech news",
+      "News overview on cryptocurrency",
+      "Summarize news related to healthcare",
+      "Give me news summaries by keyword"
+    ]
+  }
+}

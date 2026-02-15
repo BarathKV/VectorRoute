@@ -1,0 +1,35 @@
+{
+  "type": "function",
+  "function": {
+    "name": "reverse_geocode",
+    "description": "Convert coordinates into a readable address.",
+    "long_description": "Transforms geographic coordinates (latitude and longitude) into a human-readable address using an external reverse geocoding service.",
+    "domain": "Maps & Location",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "description": "Latitude of the location"
+        },
+        "longitude": {
+          "type": "number",
+          "description": "Longitude of the location"
+        }
+      },
+      "required": ["latitude", "longitude"]
+    },
+    "example_user_queries": [
+      "What address is at latitude 40.7128 and longitude -74.0060?",
+      "Reverse geocode these coordinates",
+      "Find address from GPS location",
+      "What place is this coordinate pointing to?",
+      "Get address from latitude and longitude",
+      "Convert coordinates to address",
+      "Where is this location?",
+      "Find place name using coordinates",
+      "Reverse lookup location",
+      "Identify location from GPS"
+    ]
+  }
+}

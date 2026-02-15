@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_7_day_weather_forecast",
+    "description": "Get a 7-day weather forecast for a city.",
+    "long_description": "Retrieves a 7-day weather forecast including temperature ranges, sun hours, and daily weather conditions for a specified city using an external weather API.",
+    "domain": "Weather",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "Name of the city to get the weather forecast for"
+        }
+      },
+      "required": ["city"]
+    },
+    "example_user_queries": [
+      "Show me the 7-day weather forecast for London",
+      "What will the weather be like this week in New York?",
+      "Get weekly forecast for Chennai",
+      "Weather forecast for next 7 days in Paris",
+      "How will the weather look this week in Berlin?",
+      "Give me a weekly weather outlook for Tokyo",
+      "7-day forecast for Mumbai",
+      "Show upcoming weather for Toronto",
+      "Weekly weather forecast for Singapore",
+      "What is the weather forecast for San Francisco this week?"
+    ]
+  }
+}

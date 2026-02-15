@@ -1,0 +1,31 @@
+{
+  "type": "function",
+  "function": {
+    "name": "get_current_weather",
+    "description": "Get the current weather for a city.",
+    "long_description": "Retrieves real-time weather conditions such as temperature, humidity, wind speed, and weather description for a specified city using an external weather API.",
+    "domain": "Weather",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "city": {
+          "type": "string",
+          "description": "Name of the city to get current weather information for"
+        }
+      },
+      "required": ["city"]
+    },
+    "example_user_queries": [
+      "What is the weather in London right now?",
+      "Get current weather for New York",
+      "How is the weather today in Chennai?",
+      "Show me the weather in Paris",
+      "What’s the temperature in Berlin now?",
+      "Check current weather in Tokyo",
+      "Tell me today’s weather in Mumbai",
+      "Current weather conditions in Toronto",
+      "Is it raining in Singapore?",
+      "What is the weather like in San Francisco?"
+    ]
+  }
+}
