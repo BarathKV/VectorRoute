@@ -1,22 +1,19 @@
 import ollama
+from pydantic import BaseModel
 
-from agent.select_tool import select_best_tool
+class Tool(BaseModel):
+    name: str
+    description: str
+    parameters: dict
 
-class Agent:
-    def __init__(self,tool_registry,tools_embeddings,model: str = "functiongemma:latest"):
+class ClassicalAgent:
+    def __init__(self, tool_registry, tools_embeddings, model: str = "functiongemma:latest"):
         self.tools_embeddings = tools_embeddings
         self.tool_registry = tool_registry
         self.model = model
 
-
-    def run(self,user_input: str):
-        tools_used = []
-        selected_tools = select_best_tool(
-            user_query=user_input,
-            tool_embeddings=self.tools_embeddings,
-        )
-        # print(f"Selected tools: {[tool['function']['name'] for tool in selected_tools]}")
-
+    def run(self, user_input: str) -> tuple[str, list]:
+        tools_called = []
         messages = [
             {
                 "role": "system",
@@ -27,16 +24,25 @@ class Agent:
             },
             {"role": "user", "content": user_input},
         ]
+        # print(f"Tool registry: {self.tool_registry}")
+
+        # Convert tool_registry to a list of Tool objects
+        tools = [
+            Tool(
+                name=name,
+                description=f"Function {name} from the tool registry.",
+                parameters={"type": "object", "properties": {}}
+            ).dict() for name in self.tool_registry.keys()
+        ]
 
         response = ollama.chat(
             model=self.model,
             messages=messages,
-            tools=selected_tools if selected_tools else None,
+            tools=tools if tools else None,
         )
 
         message = response["message"]
 
-        # Tool execution
         if "tool_calls" in message:
             for tool_call in message["tool_calls"]:
                 tool_name = tool_call["function"]["name"]
@@ -45,7 +51,7 @@ class Agent:
                 result = self.tool_registry[tool_name](**arguments)
 
                 messages.append(message)
-                tools_used.append(tool_name)
+                tools_called.append(tool_name)
                 messages.append({
                     "role": "tool",
                     "tool_name": tool_name,
@@ -55,8 +61,10 @@ class Agent:
                 final = ollama.chat(
                     model=self.model,
                     messages=messages,
+                    tools=tools if tools else None,
                 )
+                print(f"Final response after tool execution: {final['message']['content']}")
+                return final["message"]["content"], tools_called
 
-                return final["message"]["content"], tools_used
-
-        return message["content"], tools_used
+        print(f"Final response without tool execution: {message['content']}")
+        return message["content"], tools_called

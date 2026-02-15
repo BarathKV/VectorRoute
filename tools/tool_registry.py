@@ -7,24 +7,27 @@ import importlib.util
 # Path to the functions folder
 FUNCTIONS_FOLDER = os.path.join(os.path.dirname(__file__), 'functions')
 
-def update_tool_registry()->dict:
+def update_tool_registry() -> dict:
     TOOL_REGISTRY = {}
-    # Dynamically load all Python files in the functions folder
-    for filename in os.listdir(FUNCTIONS_FOLDER):
-        if filename.endswith('.py'):
-            module_name = filename[:-3]  # Remove the .py extension
-            module_path = os.path.join(FUNCTIONS_FOLDER, filename)
+    
+    # Walk through the functions folder recursively
+    for root, _, files in os.walk(FUNCTIONS_FOLDER):
+        for filename in files:
+            if filename.endswith('.py'):
+                module_name = os.path.splitext(os.path.relpath(os.path.join(root, filename), FUNCTIONS_FOLDER))[0]
+                module_name = module_name.replace(os.sep, '.')  # Convert path to module name
+                module_path = os.path.join(root, filename)
 
-            # Dynamically import the module
-            spec = importlib.util.spec_from_file_location(module_name, module_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+                # Dynamically import the module
+                spec = importlib.util.spec_from_file_location(module_name, module_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
 
-            # Add all functions in the module to TOOL_REGISTRY
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if callable(attr):  # Check if the attribute is a function
-                    TOOL_REGISTRY[attr_name] = attr
+                # Add all functions in the module to TOOL_REGISTRY
+                for attr_name in dir(module):
+                    attr = getattr(module, attr_name)
+                    if callable(attr):  # Check if the attribute is a function
+                        TOOL_REGISTRY[attr_name] = attr
 
     print(f"Loaded tools: {list(TOOL_REGISTRY.keys())}")
     return TOOL_REGISTRY

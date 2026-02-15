@@ -1,22 +1,19 @@
 {
-    "type": "function",
-    "function": {
-        "name": "add_numbers",
-        "description": "Add two numbers together",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "a": {
-                    "type": "integer"
-                },
-                "b": {
-                    "type": "integer"
-                }
-            },
-            "required": [
-                "a",
-                "b"
-            ]
+  "type": "function",
+  "function": {
+    "name": "add_numbers",
+    "description": "Add two numbers together",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "integer"
+        },
+        "b": {
+          "type": "integer"
         }
+      },
+      "required": ["a", "b"]
     }
+  }
 }
