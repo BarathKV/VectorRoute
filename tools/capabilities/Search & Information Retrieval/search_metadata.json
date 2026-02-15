@@ -1,0 +1,30 @@
+{
+  "name": "search_metadata",
+  "short_description": "Search documents using file metadata.",
+  "long_description": "Searches document metadata such as filename, size, or last modified date to retrieve matching files.",
+  "domain": "Search & Information Retrieval",
+  "parameters": [
+    {
+      "name": "metadata_field",
+      "type": "string",
+      "description": "Metadata field (filename, size, modified)"
+    },
+    {
+      "name": "value",
+      "type": "string",
+      "description": "Value to match against metadata"
+    }
+  ],
+  "example_user_queries": [
+    "Find documents modified today",
+    "Search files by filename",
+    "Find documents with size greater than 1KB",
+    "Search documents by metadata",
+    "Find files modified recently",
+    "Search metadata for report",
+    "Find files with specific filename",
+    "Search documents by modification date",
+    "Find files with matching metadata",
+    "Retrieve documents using metadata"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "ranked_search",
+  "short_description": "Search documents and rank results by relevance.",
+  "long_description": "Performs a search across documents and ranks results based on the frequency of query terms.",
+  "domain": "Search & Information Retrieval",
+  "parameters": [
+    {
+      "name": "query",
+      "type": "string",
+      "description": "Search query"
+    },
+    {
+      "name": "limit",
+      "type": "integer",
+      "description": "Maximum number of results to return"
+    }
+  ],
+  "example_user_queries": [
+    "Get top documents related to error",
+    "Search and rank documents by relevance",
+    "Find most relevant reports about database",
+    "Show top matching files",
+    "Rank search results",
+    "Get best matches for login issue",
+    "Search and return top results",
+    "Find highest relevance documents",
+    "Rank files based on content",
+    "Search documents and rank them"
+  ]
+}

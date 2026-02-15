@@ -1,0 +1,10 @@
+INFO: User Alice logged in successfully
+WARNING: Failed login attempt for user Bob
+ERROR: Database connection timeout occurred
+INFO: User Charlie updated profile
+ERROR: Authentication service unavailable
+WARNING: Password attempt failed multiple times
+INFO: System health check completed
+ERROR: API request failed due to timeout
+INFO: User Diana logged out
+WARNING: Disk space running low

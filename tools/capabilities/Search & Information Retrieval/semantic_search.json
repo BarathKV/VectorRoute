@@ -1,0 +1,30 @@
+{
+  "name": "semantic_search",
+  "short_description": "Search documents based on conceptual similarity.",
+  "long_description": "Searches documents by comparing overlapping terms between the user query and document content to approximate semantic similarity.",
+  "domain": "Search & Information Retrieval",
+  "parameters": [
+    {
+      "name": "query",
+      "type": "string",
+      "description": "Natural language search query"
+    },
+    {
+      "name": "corpus",
+      "type": "string",
+      "description": "Document collection name"
+    }
+  ],
+  "example_user_queries": [
+    "Find documents related to login issues",
+    "Search content about database problems",
+    "Look for files discussing failures",
+    "Find documents about authentication",
+    "Search reports related to crashes",
+    "Look up information about errors",
+    "Find content similar to timeout issues",
+    "Search documents about performance",
+    "Find reports discussing system issues",
+    "Search files related to API errors"
+  ]
+}

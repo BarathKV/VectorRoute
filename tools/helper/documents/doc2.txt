@@ -1,0 +1,8 @@
+Database and Performance Notes
+
+The database experienced several timeout issues recently.
+Slow query execution caused performance bottlenecks.
+API calls depending on database responses were affected.
+
+Monitoring database health and query performance is critical
+to avoid cascading system failures.
