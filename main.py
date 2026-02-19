@@ -11,7 +11,8 @@ if __name__ == "__main__":
         tool_doc_list
     )  # Compute embeddings for the loaded tools
 
-    agent = Agent(tool_registry, tool_embedding,model="llama3.2:3b")
+    # agent = Agent(tool_registry, tool_embedding,model="llama3.2:3b")
+    agent = Agent(tool_registry, tool_embedding,model="granite3.1-moe:3b")
     
     queries = [
         "What is the weather like?",
