@@ -21,8 +21,7 @@ class Agent:
             {
                 "role": "system",
                 "content": (
-                    "You are an assistant. "
-                    "Use tools only if necessary."
+                    "Use tools whereever necessary."
                 ),
             },
             {"role": "user", "content": user_input},
@@ -57,6 +56,6 @@ class Agent:
                     messages=messages,
                 )
 
-                return final["message"]["content"], tools_used
+                return final, tools_used
 
-        return message["content"], tools_used
+        return response, tools_used

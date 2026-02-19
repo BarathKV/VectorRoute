@@ -1,5 +1,5 @@
-from tools.tool_registry import update_tool_registry
-from tools.fetch_tool_docs import fetch_tool_docs
+from tool_registry import update_tool_registry
+from fetch_tool_docs import fetch_tool_docs
 from embedding.embedding import compute_tool_embeddings
 from agent.agent import Agent
 
@@ -11,7 +11,16 @@ if __name__ == "__main__":
         tool_doc_list
     )  # Compute embeddings for the loaded tools
 
-    agent = Agent(tool_registry, tool_embedding)
-    print(agent.run("What is the weather like in Tokyo?"))
-    print(agent.run("What is 42 plus 11?"))
-    print(agent.run("Explain transformers in machine learning"))
+    agent = Agent(tool_registry, tool_embedding,model="llama3.2:3b")
+    
+    queries = [
+        "What is the weather like?",
+        # "What is 42 plus 11?",
+        # "Explain transformers in machine learning"
+    ]
+
+    for query in queries:
+        response, tools_used = agent.run(query)
+        print(f"Response: {response}")
+        print(f"Response Message: {response['message']['content']}")
+        print(f"Tools used: {tools_used}")

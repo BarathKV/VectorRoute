@@ -1,5 +1,5 @@
-from tools.tool_registry import update_tool_registry
-from tools.fetch_tool_docs import fetch_tool_docs
+from tool_registry import update_tool_registry
+from fetch_tool_docs import fetch_tool_docs
 from agent.clasical_agent import ClassicalAgent
 
 import csv
