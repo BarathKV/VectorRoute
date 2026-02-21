@@ -9,8 +9,13 @@ wheels/
 # Virtual environments
 .venv
 
-reference_code/
+.python-version
 
+reference/
 io/
 
 .vscode/
+
+# Cache files for incremental tool embedding
+.tool_file_cache.json
+.tool_embeddings_cache.json

@@ -1,6 +1,7 @@
-from tool_registry import update_tool_registry
-from fetch_tool_docs import fetch_tool_docs
-from embedding.embedding import compute_tool_embeddings
+from tool_utils.tool_registry import update_tool_registry
+from tool_utils.fetch_tool_docs import fetch_tool_docs
+from tool_utils.file_tracker import FileChangeTracker
+from embedding.tool_embedder import compute_tool_embeddings
 from agent.agent import Agent
 
 import csv
@@ -8,11 +9,31 @@ import time
 import os
 
 if __name__ == "__main__":
-    tool_registry = update_tool_registry()  # Load tools into tool registry
-    tool_doc_list = fetch_tool_docs()  # Load tool documentation into a list
+    # Initialize file change tracker
+    tracker = FileChangeTracker()
+    changed_tools = tracker.get_changed_tools()
+    
+    if changed_tools:
+        print(f"\nDetected {len(changed_tools)} tools with changes:")
+        for tool_name in sorted(changed_tools):
+            print(f"  - {tool_name}")
+    else:
+        print("\nNo changes detected. Using cached embeddings.")
+    
+    # Load tools into tool registry
+    tool_registry = update_tool_registry()
+    
+    # Load tool documentation into a list
+    tool_doc_list = fetch_tool_docs()
+    
+    # Compute embeddings (incremental mode)
     tool_embedding = compute_tool_embeddings(
-        tool_doc_list
-    )  # Compute embeddings for the loaded tools
+        tool_doc_list,
+        changed_tools=changed_tools
+    )
+    
+    # Mark files as processed
+    tracker.mark_as_processed()
 
     agent = Agent(tool_registry, tool_embedding)
 
