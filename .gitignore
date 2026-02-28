@@ -12,6 +12,9 @@ wheels/
 .python-version
 .pytest_cache/
 
+# Database files
+embedding_db/
+
 reference/
 io/
 

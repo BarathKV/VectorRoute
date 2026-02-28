@@ -28,6 +28,8 @@ class BatchProcessor:
                 agent_response, tools_used = self.agent.run(original_value)
                 query_end_time = time.time()
                 query_duration = query_end_time - query_start_time
+
+                print(agent_response)
                 
-                writer.writerow([original_value, agent_response["message"], tools_used, query_duration])
-                outfile.flush()  # ensures it is saved immediately
+                # writer.writerow([original_value, agent_response["message"], tools_used, query_duration])
+                # outfile.flush()  # ensures it is saved immediately

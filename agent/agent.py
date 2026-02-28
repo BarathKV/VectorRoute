@@ -42,7 +42,11 @@ class Agent:
                 arguments = tool_call["function"]["arguments"]
                 print(f"Executing tool: {tool_name} with arguments: {arguments}")
 
-                result = self.tool_registry[tool_name](**arguments)
+                try:
+                    result = self.tool_registry[tool_name](**arguments)
+                except TypeError as error:
+                    error_message = f"ERROR:{error}"
+                    return error_message, tools_used
 
                 messages.append(message)
                 tools_used.append(tool_name)

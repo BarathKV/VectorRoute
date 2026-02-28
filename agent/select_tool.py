@@ -1,5 +1,5 @@
-from model.embedding import get_embedding
-from similarity.cosine import cosine_similarity
+from embedding.embedder import get_embedding
+from embedding.similarity.cosine import cosine_similarity
 
 def select_best_tool(user_query: str, tool_embeddings, threshold: float = 0.2) -> list[str]:
     query_embedding = get_embedding(user_query)

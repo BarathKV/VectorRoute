@@ -1,26 +1,55 @@
-from tool_registry import update_tool_registry
-from fetch_tool_docs import fetch_tool_docs
+from tools.tool_registry import update_tool_registry
+from tools.fetch_tool_docs import fetch_tool_docs
 from embedding.tool_embedder import compute_tool_embeddings
+from tools.file_tracker import FileChangeTracker
 from agent.agent import Agent
+# from agent.clasical_agent import ClassicalAgent
+from agent.batch_processor import BatchProcessor
 
+import os
+import time
 
 if __name__ == "__main__":
-    tool_registry = update_tool_registry()  # Load tools into tool registry
-    tool_doc_list = fetch_tool_docs()  # Load tool documentation into a list
-    tool_embedding = compute_tool_embeddings(
-        tool_doc_list
-    )  # Compute embeddings for the loaded tools
-
-    agent = Agent(tool_registry, tool_embedding)
+    # Initialize file change tracker
+    tracker = FileChangeTracker()
+    changed_tools = tracker.get_changed_tools()
     
-    queries = [
-        "calculcate my bmi, i am 170 cm in height and 60 kg in weight",
-        "What is the current price of Apple stock?",
-        "Convert 16 inches to feet"
-    ]
+    if changed_tools:
+        print(f"\nDetected {len(changed_tools)} tools with changes:")
+        for tool_name in sorted(changed_tools):
+            print(f"  - {tool_name}")
+    else:
+        print("\nNo changes detected. Using cached embeddings.")
+    
+    # Load tools into tool registry
+    tool_registry = update_tool_registry()
+    
+    # Load tool documentation into a list
+    tool_doc_list = fetch_tool_docs()
+    
+    # Compute embeddings (incremental mode)
+    tool_embedding = compute_tool_embeddings(
+        tool_doc_list,
+        changed_tools=changed_tools
+    )
+    
+    # Mark files as processed
+    tracker.mark_as_processed()
 
-    for query in queries:
-        response, tools_used = agent.run(query)
-        print(f"Response: {response}")
-        print(f"Response Message: {response['message']['content']}")
-        print(f"Tools used: {tools_used}")
+    # Vector Route Agent
+    agent = Agent(tool_registry, tool_embedding)
+
+    # Clasical Agent
+    # agent = ClassicalAgent(tool_registry,tool_embedding)
+
+    input_file = "io/queries.csv"
+    input_file = os.path.abspath(input_file)
+
+    folder = "vr" if isinstance(agent, Agent) else "clasical"
+
+    output_file = f"io/{folder}/agent_run_log_{time.time()}.csv"
+    outfile = os.path.abspath(output_file)
+
+    bp = BatchProcessor(agent,input_file,output_file)
+
+    bp.process_batch()
