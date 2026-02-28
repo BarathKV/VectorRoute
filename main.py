@@ -1,6 +1,6 @@
 from tool_registry import update_tool_registry
 from fetch_tool_docs import fetch_tool_docs
-from embedding.embedding import compute_tool_embeddings
+from embedding.tool_embedder import compute_tool_embeddings
 from agent.agent import Agent
 
 
@@ -11,13 +11,12 @@ if __name__ == "__main__":
         tool_doc_list
     )  # Compute embeddings for the loaded tools
 
-    # agent = Agent(tool_registry, tool_embedding,model="llama3.2:3b")
-    agent = Agent(tool_registry, tool_embedding,model="granite3.1-moe:3b")
+    agent = Agent(tool_registry, tool_embedding)
     
     queries = [
-        "What is the weather like?",
-        # "What is 42 plus 11?",
-        # "Explain transformers in machine learning"
+        "calculcate my bmi, i am 170 cm in height and 60 kg in weight",
+        "What is the current price of Apple stock?",
+        "Convert 16 inches to feet"
     ]
 
     for query in queries:

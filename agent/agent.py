@@ -3,7 +3,7 @@ import ollama
 from agent.select_tool import select_best_tool
 
 class Agent:
-    def __init__(self,tool_registry,tools_embeddings,model: str = "functiongemma:latest"):
+    def __init__(self,tool_registry,tools_embeddings,model: str = "llama3.2:3b"):
         self.tools_embeddings = tools_embeddings
         self.tool_registry = tool_registry
         self.model = model
@@ -40,6 +40,7 @@ class Agent:
             for tool_call in message["tool_calls"]:
                 tool_name = tool_call["function"]["name"]
                 arguments = tool_call["function"]["arguments"]
+                print(f"Executing tool: {tool_name} with arguments: {arguments}")
 
                 result = self.tool_registry[tool_name](**arguments)
 
