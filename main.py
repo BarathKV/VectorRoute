@@ -9,7 +9,13 @@ from agent.batch_processor import BatchProcessor
 import os
 import time
 
+def main(argc, argv):
+    print("Starting the tool embedding and agent processing pipeline...")
+    
+
+
 if __name__ == "__main__":
+    main(len(os.sys.argv), os.sys.argv)
     # Initialize file change tracker
     tracker = FileChangeTracker()
     changed_tools = tracker.get_changed_tools()
