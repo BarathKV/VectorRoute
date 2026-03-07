@@ -1,29 +1,37 @@
 import ollama
 
-from agent.select_tool import select_best_tool
+from tools.db_connection import DBConnection
 from agent.validation import validate_and_coerce
 
+
 class Agent:
-    def __init__(self,tool_registry,tools_embeddings,model: str = "llama3.2:3b"):
-        self.tools_embeddings = tools_embeddings
+    def __init__(self, tool_registry, model: str = "llama3.2:3b", db: DBConnection = None):
         self.tool_registry = tool_registry
         self.model = model
+        # Use provided DBConnection or create one
+        self.db = db or DBConnection()
+        self.db.update_db()
+        print()
 
-
-    def run(self,user_input: str):
+    def run(self, user_input: str):
         tools_used = []
-        selected_tools = select_best_tool(
-            user_query=user_input,
-            tool_embeddings=self.tools_embeddings,
-        )
-        # print(f"Selected tools: {[tool['function']['name'] for tool in selected_tools]}")
+
+        # Use DBConnection.route_query to pick the best tool name
+        best_tool_name = self.db.route_query(user_input)
+
+        # Try to locate the capability JSON for the selected tool
+        selected_tools = None
+        if best_tool_name and best_tool_name != "No confident match":
+            for t in self.tools_embeddings:
+                func = t.get("function", {})
+                if func.get("name") == best_tool_name:
+                    selected_tools = [t]
+                    break
 
         messages = [
             {
                 "role": "system",
-                "content": (
-                    "Use tools whereever necessary."
-                ),
+                "content": "Use tools whereever necessary.",
             },
             {"role": "user", "content": user_input},
         ]
@@ -44,8 +52,6 @@ class Agent:
                 print(f"Executing tool: {tool_name} with arguments: {arguments}")
 
                 try:
-                    # validate and coerce string arguments into their
-                    # proper python types (int, float, list, dict, bool)
                     validated_args = validate_and_coerce(arguments, self.tool_registry[tool_name])
                     print(f"Validated arguments: {validated_args}")
                     result = self.tool_registry[tool_name](**validated_args)

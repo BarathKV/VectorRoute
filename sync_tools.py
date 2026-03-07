@@ -7,7 +7,7 @@ every change made to ``VectorRoute-Tools/capabilities/**/*.json`` files.
 Flow
 ────
 1. Walk the capabilities folder and compare each file's SHA-256 hash against
-   the ``file_hashes`` table in ``hash_db.db``.
+   the ``file_hashes`` table in ``db/chroma_db.db``.
 2. Classify every file as **added**, **modified**, or **deleted**.
 3. Append one row per change to the ``change_log`` table (audit trail).
 4. For each added tool   → embed & index in ChromaDB, then update hash row.
@@ -46,7 +46,7 @@ from tools.file_tracker import (
 # ── ChromaDB config (mirrors db_connection.py) ───────────────────────────────
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CHROMA_DB_PATH = os.path.join(BASE_DIR, "embeding_db")
+CHROMA_DB_PATH = os.path.join(BASE_DIR, "embedding_db")
 COLLECTION_NAME = "tool_embeddings"
 
 
@@ -59,7 +59,7 @@ def _get_collection(similarity: str = "cosine"):
         name=COLLECTION_NAME,
         metadata={"hnsw:space": similarity},
     )
-    print(f"ChromaDB ready – '{COLLECTION_NAME}' ({col.count()} entries)")
+    print(f"ChromaDB ready - '{COLLECTION_NAME}' ({col.count()} entries)")
     return col
 
 
@@ -170,7 +170,7 @@ def sync(dry_run: bool = False) -> None:
     total = len(added) + len(modified) + len(deleted)
 
     if total == 0:
-        print("✓ No capability changes detected – everything is up to date.")
+        print("✓ No capability changes detected - everything is up to date.")
         return
 
     # Pretty summary
@@ -199,7 +199,7 @@ def sync(dry_run: bool = False) -> None:
     # ── Step 3: process added tools ───────────────────────────────────────────
     for tool_name in added:
         if tool_name not in tool_docs:
-            print(f"  ⚠  '{tool_name}' flagged as added but not found on disk – skipping")
+            print(f"  ⚠  '{tool_name}' flagged as added but not found on disk - skipping")
             continue
         tool_data, file_path, new_hash = tool_docs[tool_name]
 
@@ -210,7 +210,7 @@ def sync(dry_run: bool = False) -> None:
     # ── Step 4: process modified tools ────────────────────────────────────────
     for tool_name in modified:
         if tool_name not in tool_docs:
-            print(f"  ⚠  '{tool_name}' flagged as modified but not found on disk – skipping")
+            print(f"  ⚠  '{tool_name}' flagged as modified but not found on disk - skipping")
             continue
         tool_data, file_path, new_hash = tool_docs[tool_name]
         old_hash = stored_hashes.get(tool_name)
@@ -228,7 +228,7 @@ def sync(dry_run: bool = False) -> None:
         delete_hash(tool_name)  # remove stale row so it won't re-appear
 
     print(
-        f"\n✓ Sync complete – "
+        f"\n✓ Sync complete - "
         f"added={len(added)}  modified={len(modified)}  deleted={len(deleted)}"
     )
 

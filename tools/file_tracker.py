@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HASH_DB_PATH = os.path.join(BASE_DIR, "hash_db.db")
+HASH_DB_PATH = os.path.join(BASE_DIR, "embedding_db/chroma_db.db")
 CAPABILITIES_FOLDER = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
 
 
@@ -15,8 +15,8 @@ def _init_db() -> sqlite3.Connection:
     """
     Create / connect to the SQLite hash database and ensure both tables exist:
 
-    * ``file_hashes``  – stores the last-seen SHA-256 digest per tool.
-    * ``change_log``   – append-only audit trail of every add / modify / delete.
+    * ``file_hashes``  - stores the last-seen SHA-256 digest per tool.
+    * ``change_log``   - append-only audit trail of every add / modify / delete.
     """
     conn = sqlite3.connect(HASH_DB_PATH)
     conn.execute(

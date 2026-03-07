@@ -5,7 +5,6 @@ import chromadb
 from collections import Counter
 
 from embedding.embedder import get_embedding
-from tools.fetch_tool_docs import fetch_tool_docs
 from tools.file_tracker import (
     get_file_changes,
     update_hash_of_file,
@@ -14,7 +13,7 @@ from tools.file_tracker import (
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHROMA_DB_PATH = os.path.join(BASE_DIR, "embeding_db")
+CHROMA_DB_PATH = os.path.join(BASE_DIR, "db", "embedding_db")
 COLLECTION_NAME = "tool_embeddings"
 
 
@@ -43,20 +42,20 @@ class DBConnection:
 
     # ── Private helpers ──────────────────────────────────────────────────
 
-    def _build_document(self, tool_data: dict) -> str:
-        """
-        Turn a capability JSON dict into the text that will be embedded.
-        Uses the function name + description + parameter descriptions.
-        """
-        func = tool_data.get("function", {})
-        parts = [
-            func.get("name", ""),
-            func.get("description", ""),
-        ]
-        params = func.get("parameters", {}).get("properties", {})
-        for param_name, param_info in params.items():
-            parts.append(f"{param_name}: {param_info.get('description', '')}")
-        return " | ".join(parts)
+    # def _build_document(self, tool_data: dict) -> str:
+    #     """
+    #     Turn a capability JSON dict into the text that will be embedded.
+    #     Uses the function name + description + parameter descriptions.
+    #     """
+    #     func = tool_data.get("function", {})
+    #     parts = [
+    #         func.get("name", ""),
+    #         func.get("description", ""),
+    #     ]
+    #     params = func.get("parameters", {}).get("properties", {})
+    #     for param_name, param_info in params.items():
+    #         parts.append(f"{param_name}: {param_info.get('description', '')}")
+    #     return " | ".join(parts)
 
     def _add_tool(self, tool_name: str, tool_data: dict) -> None:
         """
@@ -73,34 +72,33 @@ class DBConnection:
         long_description: str = func.get("long_description", "")
         domain: str = func.get("domain", "")
 
+        def add_embedding(category: str, embedding_input: str):
+            embedding = get_embedding(embedding_input)
+            if not embedding:
+                print(
+                    f"[!] Skipping {category} for tool '{tool_name}' due to missing embedding."
+                )
+                return False
+            self.collection.add(
+                ids=[f"{tool_name}_{category}"],
+                embeddings=[embedding],
+                metadatas=[{"tool": tool_name, "category": category}],
+            )
+            return True
+
         # Example queries – each gets a unique id
         for example in examples:
-            self.collection.add(
-                ids=[f"{tool_name}_{uuid.uuid4().hex}"],
-                embeddings=[get_embedding(example)],
-                metadatas=[{"tool": tool_name, "category": "example_query"}],
-            )
+            if not add_embedding("example_query", example):
+                continue
 
         # Short description
-        self.collection.add(
-            ids=[f"{tool_name}_desc"],
-            embeddings=[get_embedding(description)],
-            metadatas=[{"tool": tool_name, "category": "description"}],
-        )
+        add_embedding("desc", description)
 
         # Long description
-        self.collection.add(
-            ids=[f"{tool_name}_long_desc"],
-            embeddings=[get_embedding(long_description)],
-            metadatas=[{"tool": tool_name, "category": "long_description"}],
-        )
+        add_embedding("long_desc", long_description)
 
         # Domain
-        self.collection.add(
-            ids=[f"{tool_name}_domain"],
-            embeddings=[get_embedding(domain)],
-            metadatas=[{"tool": tool_name, "category": "domain"}],
-        )
+        add_embedding("domain", domain)
 
         print(f"  [+] Added tool: {tool_name} ({len(examples)} examples)")
 
