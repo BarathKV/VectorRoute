@@ -37,7 +37,7 @@ if __name__ == "__main__":
     tracker.mark_as_processed()
 
     # Vector Route Agent
-    agent = Agent(tool_registry, tool_embedding)
+    agent = Agent(tool_registry, tool_embedding, model="functiongemma:latest")
 
     # Clasical Agent
     # agent = ClassicalAgent(tool_registry,tool_embedding)
