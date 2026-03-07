@@ -3,32 +3,14 @@ import os
 import sys
 
 from tools.tool_registry import update_tool_registry
-from tools.fetch_tool_docs import fetch_tool_docs
-from embedding.tool_embedder import compute_tool_embeddings
-from tools.file_tracker import FileChangeTracker
+from reference.fetch_tool_docs import fetch_tool_docs
 from agent.agent import Agent
 
 
 def init_agent(model: str = "functiongemma:latest") -> Agent:
-    tracker = FileChangeTracker()
-    changed_tools = tracker.get_changed_tools()
-
-    if changed_tools:
-        print(f"Detected {len(changed_tools)} tools with changes. Recomputing embeddings...")
-    else:
-        print("No tool changes detected. Using cached embeddings.")
-
     tool_registry = update_tool_registry()
-    tool_doc_list = fetch_tool_docs()
 
-    tool_embedding = compute_tool_embeddings(
-        tool_doc_list,
-        changed_tools=changed_tools,
-    )
-
-    tracker.mark_as_processed()
-
-    agent = Agent(tool_registry, tool_embedding, model=model)
+    agent = Agent(tool_registry, model=model)
     return agent
 
 
