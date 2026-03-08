@@ -3,17 +3,14 @@ import json
 import uuid
 import chromadb
 from collections import Counter
+from typing import Optional, Dict, Tuple
 
 from embedding.embedder import get_embedding
-from tools.file_tracker import (
-    get_file_changes,
-    update_hash_of_file,
-    CAPABILITIES_FOLDER,
-)
+from tools.file_tracker import FileTracker
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHROMA_DB_PATH = os.path.join(BASE_DIR, "db", "embedding_db")
+CHROMA_DB_PATH = os.path.join(BASE_DIR,"embedding_db")
 COLLECTION_NAME = "tool_embeddings"
 
 
@@ -39,6 +36,8 @@ class DBConnection:
             f"ChromaDB connected - collection '{COLLECTION_NAME}' "
             f"({self.collection.count()} tools stored)"
         )
+        # capabilities folder path for loading docs
+        self.capabilities_folder = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
 
     # ── Private helpers ──────────────────────────────────────────────────
 
@@ -79,6 +78,9 @@ class DBConnection:
                     f"[!] Skipping {category} for tool '{tool_name}' due to missing embedding."
                 )
                 return False
+            print(
+                f"  [+] Adding embedding for tool '{tool_name}' - category: {category}"
+            )
             self.collection.add(
                 ids=[f"{tool_name}_{category}"],
                 embeddings=[embedding],
@@ -136,7 +138,7 @@ class DBConnection:
 
     # ── Public API ───────────────────────────────────────────────────────
 
-    def update_db(self) -> None:
+    def update_db(self, changes: Optional[dict] = None) -> None:
         """
         Synchronise ChromaDB with the capability JSON files on disk.
 
@@ -146,7 +148,12 @@ class DBConnection:
         4. For each deleted tool  → _delete_tool() (hash row stays or can be
            pruned separately).
         """
-        changes = get_file_changes()
+        # Accept externally computed changes (e.g. from a FileTracker) or
+        # compute them here using FileTracker.
+        if changes is None:
+            ft = FileTracker()
+            changes = ft.get_file_changes()
+
         added = changes["added"]
         modified = changes["modified"]
         deleted = changes["deleted"]
@@ -162,16 +169,23 @@ class DBConnection:
             if tool_name in tool_docs:
                 tool_data, file_path = tool_docs[tool_name]
                 self._add_tool(tool_name, tool_data)
-                update_hash_of_file(tool_name, file_path)
+                # Persist file hash via FileTracker
+                ft = FileTracker()
+                ft.update_hash_of_file(tool_name, file_path, "json")
 
         for tool_name in modified:
             if tool_name in tool_docs:
                 tool_data, file_path = tool_docs[tool_name]
                 self._update_tool(tool_name, tool_data)
-                update_hash_of_file(tool_name, file_path)
+                ft = FileTracker()
+                ft.update_hash_of_file(tool_name, file_path, "json")
 
         for tool_name in deleted:
             self._delete_tool(tool_name)
+            # Also remove hashes recorded for this tool
+            ft = FileTracker()
+            ft.delete_hash(tool_name, "json")
+            ft.delete_hash(tool_name, "py")
 
         print(
             f"Sync complete  ➜  added={len(added)}  "
@@ -181,7 +195,7 @@ class DBConnection:
     def route_query(
         self,
         user_query: str,
-        top_k: int = 10,
+        top_k: int = 200,
         threshold: float = 0.7,
         min_example_hits: int = 4,
     ) -> str:
@@ -210,7 +224,9 @@ class DBConnection:
         )
 
         tools_found = [m["tool"] for m in results["metadatas"][0]]
+        # print(f"Tools found in example-query search: {list(tools_found)}")
         count = Counter(tools_found)
+        print(f"Tool counts from example-query search: {dict(count)}")
 
         # ── Step 2: find tool with enough example matches ────────────
         for tool_name, c in count.items():
@@ -219,7 +235,7 @@ class DBConnection:
                 # ── Step 3: validate against other categories ────────
                 validation = self.collection.query(
                     query_embeddings=[user_embedding],
-                    n_results=3,
+                    n_results=30,
                     where={
                         "$and": [
                             {"tool": tool_name},
@@ -253,7 +269,8 @@ class DBConnection:
             { tool_name: (parsed_json, file_path) }
         """
         tool_map: dict = {}
-        for root, _, files in os.walk(CAPABILITIES_FOLDER):
+        caps_folder = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
+        for root, _, files in os.walk(caps_folder):
             for fname in files:
                 if not fname.endswith(".json"):
                     continue
