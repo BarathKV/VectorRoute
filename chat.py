@@ -10,7 +10,7 @@ from agent.agent import Agent
 def init_agent(model: str = "functiongemma:latest") -> Agent:
     tool_registry = update_tool_registry()
 
-    agent = Agent(tool_registry, model=model)
+    agent = Agent(model=model)
     return agent
 
 

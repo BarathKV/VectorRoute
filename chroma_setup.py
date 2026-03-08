@@ -1,7 +1,7 @@
 import chromadb
 
 # -------- INIT CHROMA ----------
-persist_directory = "./db/embedding_db"
+persist_directory = "./embedding_db"
 chroma_client = chromadb.PersistentClient(path=persist_directory)
 collection = chroma_client.get_or_create_collection("tool_embeddings")
 

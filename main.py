@@ -11,7 +11,7 @@ if __name__ == "__main__":
     tool_registry = update_tool_registry()
 
     # Vector Route Agent
-    agent = Agent(tool_registry, model="functiongemma:latest")
+    agent = Agent(model="functiongemma:latest")
 
     # Clasical Agent
     # agent = ClassicalAgent(tool_registry,tool_embedding)
