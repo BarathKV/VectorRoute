@@ -1,4 +1,6 @@
+import json
 import ollama
+from typing import List, Tuple
 
 from tools.db_connection import DBConnection
 from tools.file_tracker import FileTracker
@@ -97,3 +99,82 @@ class Agent:
                 return final["message"], tools_used
 
         return response["message"], tools_used
+
+    def multi_step_run(self, user_input: str) -> Tuple[dict, List[str]]:
+        """Handle a single user message containing multiple questions.
+
+        Steps:
+        - Ask the LLM to split the input into a JSON array of questions.
+        - Run each question separately via `run()`.
+        - Ask the LLM to combine the individual Q/A pairs into one reply.
+
+        Returns: (final_message, tools_used_list)
+        """
+        tools_used_total: List[str] = []
+
+        # 1) Ask model to split into separate questions (expect JSON array)
+        split_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a strict JSON formatter. Split the following user message into "
+                    "separate questions and return ONLY a JSON array of strings (no explanation)."
+                ),
+            },
+            {"role": "user", "content": user_input},
+        ]
+
+        try:
+            split_resp = ollama.chat(model=self.model, messages=split_messages)
+            split_msg = split_resp.get("message", {})
+            split_text = ""
+            if isinstance(split_msg, dict):
+                split_text = split_msg.get("content") or split_msg.get("text") or str(split_msg)
+            else:
+                split_text = str(split_msg)
+
+            # Extract JSON array from potential surrounding text
+            start = split_text.find("[")
+            end = split_text.rfind("]")
+            if start != -1 and end != -1:
+                json_text = split_text[start : end + 1]
+                queries = json.loads(json_text)
+                if not isinstance(queries, list):
+                    queries = [user_input]
+            else:
+                queries = [user_input]
+        except Exception:
+            queries = [user_input]
+
+        # 2) Run each query separately
+        qa_pairs = []
+        for q in queries:
+            resp, tools_used = self.run(q)
+            tools_used_total.extend(tools_used)
+
+            if isinstance(resp, dict):
+                answer_text = resp.get("content") or resp.get("text") or str(resp)
+            else:
+                answer_text = str(resp)
+
+            qa_pairs.append({"question": q, "answer": answer_text})
+
+        # 3) Ask the model to combine the individual answers into one coherent reply
+        combine_messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are a helpful assistant. Combine the following question/answer pairs "
+                    "into a single, user-facing response. Keep it clear and concise."
+                ),
+            },
+            {"role": "user", "content": json.dumps({"original": user_input, "qa_pairs": qa_pairs}, indent=2)},
+        ]
+
+        combined_resp = ollama.chat(model=self.model, messages=combine_messages)
+        final_message = combined_resp.get("message", {})
+
+        return final_message, tools_used_total
+
+
+        
