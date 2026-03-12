@@ -81,8 +81,16 @@ class DBConnection:
             print(
                 f"  [+] Adding embedding for tool '{tool_name}' - category: {category}"
             )
+            # Use a stable id for fixed categories (desc/long_desc/domain),
+            # but generate a unique id per example query so multiple examples
+            # for the same tool are stored instead of clobbering one id.
+            if category == "example_query":
+                id_val = f"{tool_name}_{category}_{str(uuid.uuid4())}"
+            else:
+                id_val = f"{tool_name}_{category}"
+
             self.collection.add(
-                ids=[f"{tool_name}_{category}"],
+                ids=[id_val],
                 embeddings=[embedding],
                 metadatas=[{"tool": tool_name, "category": category}],
             )
@@ -195,9 +203,9 @@ class DBConnection:
     def route_query(
         self,
         user_query: str,
-        top_k: int = 200,
+        top_k: int = 14,
         threshold: float = 0.7,
-        min_example_hits: int = 4,
+        min_example_hits: int = 3,
     ) -> str:
         """
         Route a user query to the best-matching tool using a two-step
