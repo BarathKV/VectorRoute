@@ -39,11 +39,12 @@ class FileTracker:
             capabilities_folder
             or os.path.join(self.base_dir, "VectorRoute-Tools", "capabilities")
         )
+        print(f"DEBUG: Capabilities folder set to: {self.capabilities_folder}")
         self.functions_folder = (
             functions_folder
             or os.path.join(self.base_dir, "VectorRoute-Tools", "functions")
         )
-
+        print(f"DEBUG: Functions folder set to: {self.functions_folder}")
     # ---- Database helpers -------------------------------------------------
     def _init_db(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -251,8 +252,19 @@ class FileTracker:
         """
         registry: Dict[str, callable] = {}
 
+        # print(f"DEBUG: Capabilities folder: {self.capabilities_folder}")
+        # print(f"DEBUG: Functions folder: {self.functions_folder}")
+
         # Build sets for matching
-        json_names = {os.path.splitext(f)[0] for f in os.listdir(self.capabilities_folder) if f.endswith(".json")}
+        json_files = {}
+        for root, _, files in os.walk(self.capabilities_folder):
+            for fn in files:
+                if fn.endswith(".json"):
+                    name = os.path.splitext(fn)[0]
+                    json_files[name] = os.path.join(root, fn)
+
+        # print(f"DEBUG: JSON files found: {json_files}")
+
         py_paths = []
         for root, _, files in os.walk(self.functions_folder):
             for fn in files:
@@ -262,23 +274,32 @@ class FileTracker:
                     continue
                 py_paths.append(os.path.join(root, fn))
 
+        # print(f"DEBUG: Python files found: {py_paths}")
+
         for py_path in py_paths:
+            # print(f"DEBUG: Processing function file: {py_path}")
             tool_name = os.path.splitext(os.path.basename(py_path))[0]
-            if tool_name not in json_names:
-                # skip functions without capability JSON
+            if tool_name not in json_files:
+                # print(f"DEBUG: Skipping {tool_name} as it has no matching JSON file.")
                 continue
             # import module from file path
             module_name = os.path.relpath(py_path, self.functions_folder).replace(os.sep, ".")
             spec = importlib.util.spec_from_file_location(module_name, py_path)
             if spec is None or spec.loader is None:
+                # print(f"DEBUG: Failed to create spec for {py_path}")
                 continue
             module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
+            try:
+                spec.loader.exec_module(module)
+            except Exception as e:
+                # print(f"DEBUG: Failed to import {py_path}: {e}")
+                continue
 
             # prefer attribute with same name
             attr = getattr(module, tool_name, None)
             if callable(attr):
                 registry[tool_name] = attr
+                # print(f"DEBUG: Registered tool {tool_name} with callable {attr}")
                 continue
 
             # fallback: first public callable in module
@@ -288,7 +309,9 @@ class FileTracker:
                 candidate = getattr(module, name)
                 if callable(candidate):
                     registry[tool_name] = candidate
+                    print(f"DEBUG: Registered tool {tool_name} with fallback callable {candidate}")
                     break
 
+        # print(f"DEBUG: Final tool registry: {registry}")
         return registry
 

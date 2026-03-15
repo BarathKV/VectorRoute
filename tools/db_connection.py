@@ -204,7 +204,7 @@ class DBConnection:
         self,
         user_query: str,
         top_k: int = 14,
-        threshold: float = 0.7,
+        threshold: float = 0.5,
         min_example_hits: int = 3,
     ) -> str:
         """
@@ -231,41 +231,60 @@ class DBConnection:
             where={"category": "example_query"},
         )
 
-        tools_found = [m["tool"] for m in results["metadatas"][0]]
-        # print(f"Tools found in example-query search: {list(tools_found)}")
-        count = Counter(tools_found)
+        tools_found = []
+        for i,m in enumerate(results["metadatas"][0]):
+            tool = m["tool"]
+            dist = results["distances"][0][i]
+            # print(f"\n\nDEBUG: Ex-query match - tool: {tool}, dist: {dist}, sim: {1-dist}")
+            if 1 - dist > threshold:
+                tools_found.append(tool)
+        count = Counter(tools_found).most_common()  # tool_name -> count of example-query matches
         print(f"Tool counts from example-query search: {dict(count)}")
 
-        # ── Step 2: find tool with enough example matches ────────────
-        for tool_name, c in count.items():
+        for tool_name, c in dict(count).items():
             if c >= min_example_hits:
-
-                # ── Step 3: validate against other categories ────────
-                validation = self.collection.query(
-                    query_embeddings=[user_embedding],
-                    n_results=30,
-                    where={
-                        "$and": [
-                            {"tool": tool_name},
-                            {
-                                "category": {
-                                    "$in": [
-                                        "description",
-                                        "long_description",
-                                        "domain",
-                                    ]
-                                }
-                            },
-                        ]
-                    },
-                )
-
-                distances = validation["distances"][0]
-
-                if all(1 - d > threshold for d in distances):
-                    return tool_name
-
+                return tool_name
         return "No confident match"
+
+        # tools_found = [m["tool"] for m in results["metadatas"][0]]
+        # # print(f"Tools found in example-query search: {list(tools_found)}")
+
+        # # ── Step 2: find tool with enough example matches ────────────
+        # for tool_name, c in count.items():
+        #     if c >= min_example_hits:
+
+        #         # ── Step 3: validate against other categories ────────
+        #         validation = self.collection.query(
+        #             query_embeddings=[user_embedding],
+        #             n_results=30,
+        #             where={
+        #                 "$and": [
+        #                     {"tool": tool_name},
+        #                     {
+        #                         "category": {
+        #                             "$in": [
+        #                                 "description",
+        #                                 "long_description",
+        #                                 "domain",
+        #                             ]
+        #                         }
+        #                     },
+        #                 ]
+        #             },
+        #         )
+
+        #         print(f"\n\nValidation results : {validation}")
+
+        #         distances = validation["distances"][0]
+
+        #         for d in distances:
+        #             print(f"\n\nDEBUG: Validation distance for {tool_name}: {1-d}")
+
+
+        #         if all(1 - d > threshold for d in distances):
+        #             return tool_name
+
+        # return "No confident match"
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
