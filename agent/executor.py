@@ -93,7 +93,7 @@ class TaskExecutor:
         print(f"DEBUG: Aggregating results with messages: {combine_messages}")
 
         try:
-            combined_resp = ollama.chat(model=self.model, messages=combine_messages)
+            combined_resp = dict(ollama.chat(model=self.model, messages=combine_messages))
             final_message = combined_resp.get("message", {"content": "Failed to aggregate results."})
             return final_message, list(set(tools_used))
         except Exception as e:
