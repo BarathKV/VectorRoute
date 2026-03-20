@@ -287,16 +287,17 @@ class DBConnection:
         # return "No confident match"
 
     # ── Helpers ───────────────────────────────────────────────────────────
-
     @staticmethod
     def _load_tool_docs_map() -> dict:
         """
-        Walk the capabilities folder and return a dict::
-
-            { tool_name: (parsed_json, file_path) }
+        Walk the capabilities folder and return a dict:
+        { tool_name: (filtered_json, file_path) }
+        excluding 'example_user_queries'.
         """
         tool_map: dict = {}
+        # Ensure BASE_DIR is defined or accessible in your scope
         caps_folder = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
+        
         for root, _, files in os.walk(caps_folder):
             for fname in files:
                 if not fname.endswith(".json"):
@@ -305,7 +306,17 @@ class DBConnection:
                 fpath = os.path.join(root, fname)
                 try:
                     with open(fpath, "r") as f:
-                        tool_map[tool_name] = (json.load(f), fpath)
+
+                        content = json.load(f)
+                        
+                        # # Remove 'example_user_queries' from the loaded content
+                        # content["function"].pop("example_user_queries", None)
+                        
+                        tool_map[tool_name] = (content, fpath)
+                        
                 except json.JSONDecodeError:
                     print(f"  ⚠ Skipping invalid JSON: {fpath}")
+                except Exception as e:
+                    print(f"  ⚠ Error processing {fpath}: {e}")
+                    
         return tool_map
