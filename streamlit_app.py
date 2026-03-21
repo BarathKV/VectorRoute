@@ -16,6 +16,7 @@ def init_session_state():
         st.session_state.history = []
     if "model" not in st.session_state:
         st.session_state.model = "llama3.2:3b"
+    #TODO: update here to use the final tool registry function
     if "tool_registry" not in st.session_state:
         st.session_state.tool_registry = {}
 
@@ -53,6 +54,9 @@ def load_tools_into_session():
 def fetch_available_models() -> List[str]:
     try:
         raw = ollama.list()
+        models = raw.get("models", [])
+        for model in models:
+            print(f"Model: {model}")
     except Exception:
         return []
 

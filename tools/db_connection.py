@@ -10,7 +10,7 @@ from tools.file_tracker import FileTracker
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHROMA_DB_PATH = os.path.join(BASE_DIR,"embedding_db")
+CHROMA_DB_PATH = os.path.join(BASE_DIR, "embedding_db")
 COLLECTION_NAME = "tool_embeddings"
 
 
@@ -37,7 +37,9 @@ class DBConnection:
             f"({self.collection.count()} tools stored)"
         )
         # capabilities folder path for loading docs
-        self.capabilities_folder = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
+        self.capabilities_folder = os.path.join(
+            BASE_DIR, "VectorRoute-Tools", "capabilities"
+        )
 
     # ── Private helpers ──────────────────────────────────────────────────
 
@@ -158,6 +160,7 @@ class DBConnection:
         """
         # Accept externally computed changes (e.g. from a FileTracker) or
         # compute them here using FileTracker.
+        # TODO: consider moving the FileTracker logic fully outside of this class so that DBConnection is only responsible for DB interactions and not file system tracking.
         if changes is None:
             ft = FileTracker()
             changes = ft.get_file_changes()
@@ -178,6 +181,7 @@ class DBConnection:
                 tool_data, file_path = tool_docs[tool_name]
                 self._add_tool(tool_name, tool_data)
                 # Persist file hash via FileTracker
+                # TODO: consider decoupling the file hash tracking from the DBConnection class, as it currently has responsibilities both for managing the ChromaDB collection and for tracking file changes via FileTracker. This could lead to a cleaner separation of concerns if the file tracking logic is handled entirely outside of DBConnection, allowing DBConnection to focus solely on database interactions.
                 ft = FileTracker()
                 ft.update_hash_of_file(tool_name, file_path, "json")
 
@@ -185,12 +189,14 @@ class DBConnection:
             if tool_name in tool_docs:
                 tool_data, file_path = tool_docs[tool_name]
                 self._update_tool(tool_name, tool_data)
+                # TODO: consider decoupling the file hash tracking from the DBConnection class, as it currently has responsibilities both for managing the ChromaDB collection and for tracking file changes via FileTracker. This could lead to a cleaner separation of concerns if the file tracking logic is handled entirely outside of DBConnection, allowing DBConnection to focus solely on database interactions.
                 ft = FileTracker()
                 ft.update_hash_of_file(tool_name, file_path, "json")
 
         for tool_name in deleted:
             self._delete_tool(tool_name)
             # Also remove hashes recorded for this tool
+            # TODO: consider decoupling the file hash tracking from the DBConnection class, as it currently has responsibilities both for managing the ChromaDB collection and for tracking file changes via FileTracker. This could lead to a cleaner separation of concerns if the file tracking logic is handled entirely outside of DBConnection, allowing DBConnection to focus solely on database interactions.
             ft = FileTracker()
             ft.delete_hash(tool_name, "json")
             ft.delete_hash(tool_name, "py")
@@ -200,6 +206,45 @@ class DBConnection:
             f"modified={len(modified)}  deleted={len(deleted)}"
         )
 
+    def get_top_k_counter_eg_query(
+        self,
+        user_query: str,
+        top_k: int = 10,
+        use_threshold: bool = False,
+        threshold: float = 0.5,
+    ) -> list[tuple[str, int]]:
+        """
+        Query the ChromaDB collection for the most similar example user queries.
+
+        Returns a list of matching tool names based on the example queries.
+        """
+        user_embedding = get_embedding(user_query)
+
+        results = self.collection.query(
+            query_embeddings=[user_embedding],
+            n_results=top_k,
+            where={"category": "example_query"},
+        )
+
+        tools_found = []
+        if use_threshold:
+            for i, m in enumerate(results["metadatas"][0]):
+                tool = m["tool"]
+                dist = results["distances"][0][i]
+                print(f"\n\nDEBUG: Ex-query match - tool: {tool}, dist: {dist}, sim: {1-dist}")
+                if 1 - dist > threshold:
+                    tools_found.append(tool)
+            return tools_found
+        else:
+            for m in results["metadatas"][0]:
+                tool = m["tool"]
+                tools_found.append(tool)
+
+        return Counter(tools_found).most_common()
+    
+    #TODO: may be write fucntion which checks if the other capability document details fall within a certain similarity or not
+
+    #TODO: move route query to agent class
     def route_query(
         self,
         user_query: str,
@@ -232,7 +277,7 @@ class DBConnection:
         )
 
         tools_found = []
-        for i,m in enumerate(results["metadatas"][0]):
+        for i, m in enumerate(results["metadatas"][0]):
             tool = m["tool"]
             dist = results["distances"][0][i]
             # print(f"\n\nDEBUG: Ex-query match - tool: {tool}, dist: {dist}, sim: {1-dist}")
@@ -280,7 +325,6 @@ class DBConnection:
         #         for d in distances:
         #             print(f"\n\nDEBUG: Validation distance for {tool_name}: {1-d}")
 
-
         #         if all(1 - d > threshold for d in distances):
         #             return tool_name
 
@@ -297,7 +341,7 @@ class DBConnection:
         tool_map: dict = {}
         # Ensure BASE_DIR is defined or accessible in your scope
         caps_folder = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
-        
+
         for root, _, files in os.walk(caps_folder):
             for fname in files:
                 if not fname.endswith(".json"):
@@ -308,15 +352,15 @@ class DBConnection:
                     with open(fpath, "r") as f:
 
                         content = json.load(f)
-                        
+
                         # # Remove 'example_user_queries' from the loaded content
                         # content["function"].pop("example_user_queries", None)
-                        
+
                         tool_map[tool_name] = (content, fpath)
-                        
+
                 except json.JSONDecodeError:
                     print(f"  ⚠ Skipping invalid JSON: {fpath}")
                 except Exception as e:
                     print(f"  ⚠ Error processing {fpath}: {e}")
-                    
+
         return tool_map

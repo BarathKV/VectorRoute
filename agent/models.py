@@ -15,6 +15,15 @@ class Task:
             "depends_on": self.depends_on,
             "status": self.status
         }
+    
+    #TODO: write a run function which executes the task and updates the context.
+    # def run(self):
+
+    #TODO: write a function that returns whole of the context of the task including the query, tool_call, tool_result, and final LLM answer
+    # def get_context(self):
+
+    #TODO: write a get_result function that returns only the final LLM answer after a task is eecuted
+    # def get_result():
 
 class ExecutionPlan:
     def __init__(self, tasks: List[Task]):
