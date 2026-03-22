@@ -1,9 +1,9 @@
 import streamlit as st
 from agent.agent import Agent
-from typing import List, Dict
+from typing import List
 import ollama
-from tools.tool_registry import update_tool_registry
-import time
+
+from tools.file_tracker import FileTracker
 
 
 st.set_page_config(page_title="VectorRoute Agent UI")
@@ -12,11 +12,10 @@ st.set_page_config(page_title="VectorRoute Agent UI")
 def init_session_state():
     if "agent" not in st.session_state:
         st.session_state.agent = None
-    if "history" not in st.session_state:
-        st.session_state.history = []
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
     if "model" not in st.session_state:
         st.session_state.model = "llama3.2:3b"
-    #TODO: update here to use the final tool registry function
     if "tool_registry" not in st.session_state:
         st.session_state.tool_registry = {}
 
@@ -25,27 +24,9 @@ def create_agent(model: str) -> Agent:
     return Agent(model=model)
 
 
-def add_message(role: str, content: str, tools: List[str] = None):
-    st.session_state.history.append({"role": role, "content": content, "tools": tools or []})
-
-
-def render_history(container):
-    for entry in st.session_state.history:
-        role = entry.get("role", "user")
-        content = entry.get("content", "")
-        tools = entry.get("tools", [])
-
-        if role == "user":
-            container.markdown(f"**You:** {content}")
-        else:
-            container.markdown(f"**Agent:** {content}")
-            if tools:
-                container.markdown(f"- **Tools used:** {', '.join(tools)}")
-
-
 def load_tools_into_session():
     try:
-        st.session_state.tool_registry = update_tool_registry()
+        st.session_state.tool_registry = FileTracker.get_tool_registry()
     except Exception as e:
         st.session_state.tool_registry = {}
         st.error(f"Failed to load tool registry: {e}")
@@ -149,9 +130,6 @@ def main():
     st.title("VectorRoute — Agent Chat UI")
 
     # Chat UI
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -164,51 +142,27 @@ def main():
 
         # Generate and display assistant response
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                try:
-                    response, tools_used = st.session_state.agent.ask(prompt)
-                    print(type(response))
-                    print(f"\n\nFull agent response: {dict(response)}")
-                    response = dict(response)['content']
-                    print(f"\n\nAgent response: {response}, Tools used: {tools_used}")
-                except Exception as e:
-                    response = f"Error invoking agent: {e}"
+            if st.session_state.agent is None:
+                response = "Please start the agent in the sidebar first."
+                st.warning(response)
+            else:
+                with st.spinner("Thinking..."):
+                    try:
+                        final_message, tools_used = st.session_state.agent.ask(prompt)
+                        # The agent.ask returns a message dict or object
+                        if isinstance(final_message, dict):
+                            response = final_message.get("content", str(final_message))
+                        else:
+                            response = getattr(final_message, "content", str(final_message))
+                        
+                        if tools_used:
+                            st.caption(f"Tools used: {', '.join(tools_used)}")
+                    except Exception as e:
+                        response = f"Error invoking agent: {e}"
                 st.markdown(response)
 
         # Add assistant response to chat history
         st.session_state.messages.append({"role": "assistant", "content": response})
-
-
-    # # Two-column layout: main chat area + right-side tools panel
-    # col_main, col_tools = st.columns([3, 1])
-
-    # with col_main:
-    #     if st.session_state.agent is None:
-    #         st.info("Agent not initialized. Use the sidebar to start the agent.")
-    #     else:
-    #         with st.form(key="chat_form", clear_on_submit=True):
-    #             user_input = st.text_input("Your message", key="input_text")
-    #             submitted = st.form_submit_button("Send")
-
-    #         if submitted and user_input:
-    #             add_message("user", user_input)
-    #             with st.spinner("Agent thinking..."):
-    #                 try:
-    #                     response, tools_used = st.session_state.agent.run_better(user_input)
-    #                     print(f"Agent response: {response}, Tools used: {tools_used}")
-    #                 except Exception as e:
-    #                     add_message("agent", f"Error invoking agent: {e}")
-    #                 else:
-    #                     # response may be a dict-like message per agent.run_better
-    #                     content = ""
-    #                     if isinstance(response, dict):
-    #                         content = response.get("content", str(response))
-    #                     else:
-    #                         content = str(response)
-
-    #                     add_message("agent", content, tools_used)
-
-    #         render_history(col_main)
 
 
 if __name__ == "__main__":

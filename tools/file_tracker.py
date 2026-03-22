@@ -41,11 +41,11 @@ class FileTracker:
             functions_folder
             or os.path.join(self.base_dir, "VectorRoute-Tools", "functions")
         )
+        self.conn = self._init_db()  # Initialize the database connection
 
     # ---- Database helpers -------------------------------------------------
     def _init_db(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path, timeout=30)  # Increased timeout to handle longer waits
-        conn.execute("PRAGMA journal_mode=WAL;")  # Enable Write-Ahead Logging for better concurrency
+        conn = sqlite3.connect(self.db_path)  # Increased timeout to handle longer waits
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS tools (
@@ -91,63 +91,129 @@ class FileTracker:
         new_hash: Optional[str],
         file_path: Optional[str],
     ) -> None:
-        """Log changes to the change_log table with retry logic."""
-        retries = 10  # Increased retries to handle persistent locks
-        while retries > 0:
-            try:
-                conn = self._init_db()
-                conn.execute(
-                    "INSERT INTO change_log (file_key, change_type, old_hash, new_hash, file_path, changed_at) VALUES (?, ?, ?, ?, ?, ?)",
-                    (file_key, change_type, old_hash, new_hash, file_path, datetime.now(timezone.utc).isoformat()),
-                )
-                conn.commit()
-                conn.close()
-                break
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e):
-                    retries -= 1
-                    print(f"DEBUG: Database is locked. Retrying... ({10 - retries}/10)")
-                    time.sleep(2 ** (10 - retries))  # Exponential backoff
-                else:
-                    raise
-            finally:
-                if 'conn' in locals() and conn:
-                    conn.close()
+        """Log changes to the change_log table."""
+        self.conn.execute(
+            "INSERT INTO change_log (file_key, change_type, old_hash, new_hash, file_path, changed_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (file_key, change_type, old_hash, new_hash, file_path, datetime.now(timezone.utc).isoformat()),
+        )
+        self.conn.commit()
 
     # ---- Tool Registry ----------------------------------------------------
     @staticmethod
     def _load_function(file_path: str, function_name: str = "main") -> Callable:
-        """Dynamically load a function from a Python file."""
-        spec = importlib.util.spec_from_file_location("tool_module", file_path)
+        """Dynamically load a function from a Python file, with a fallback to the first callable."""
+        module_name = os.path.splitext(os.path.relpath(file_path, BASE_DIR))[0]
+        module_name = module_name.replace(os.sep, '.')  # Convert path to module name
+
+        # Dynamically import the module
+        spec = importlib.util.spec_from_file_location(module_name, file_path)
         module = importlib.util.module_from_spec(spec)
-        if file_path in sys.modules:
-            del sys.modules[file_path]  # Avoid stale imports
-        sys.modules[file_path] = module
         spec.loader.exec_module(module)
-        return getattr(module, function_name)
+
+        # Try to get the specified function
+        if hasattr(module, function_name):
+            return getattr(module, function_name)
+
+        # Fallback: Return the first callable in the module
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name)
+            if callable(attr) and not attr_name.startswith("_"):
+                print(f"WARNING: Function '{function_name}' not found in {file_path}. Using fallback '{attr_name}'.")
+                return attr
+
+        raise AttributeError(f"No callable found in module '{module_name}' at {file_path}.")
+
+    # @staticmethod
+    # def build_tool_registry(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Callable]:
+    #     """Build an in-memory tool registry from the SQLite database."""
+    #     conn = sqlite3.connect(db_path)
+    #     rows = conn.execute("SELECT name, file_path, function_name FROM tools").fetchall()
+    #     conn.close()
+
+    #     registry = {}
+    #     for name, file_path, function_name in rows:
+    #         try:
+    #             registry[name] = FileTracker._load_function(file_path, function_name)
+    #         except Exception as e:
+    #             print(f"WARNING: Failed to load tool {name} from {file_path}: {e}")
+    #     return registry
 
     @staticmethod
-    def build_tool_registry(db_path: str = DEFAULT_DB_PATH) -> Dict[str, Callable]:
-        """Build an in-memory tool registry from the SQLite database."""
-        conn = sqlite3.connect(db_path)
-        rows = conn.execute("SELECT name, file_path, function_name FROM tools").fetchall()
-        conn.close()
+    def get_tool_registry() -> Dict[str, callable]:
+        """Dynamically import functions from the functions folder.
 
-        registry = {}
-        for name, file_path, function_name in rows:
+        Returns a dict mapping tool_name -> callable. Only includes tools
+        which have both a `.json` capability and a `.py` function file on disk.
+        """
+        registry: Dict[str, callable] = {}
+
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+        capabilities_folder = os.path.join(base_dir, "VectorRoute-Tools", "capabilities")
+        print(f"DEBUG: Capabilities folder set to: {capabilities_folder}")
+        functions_folder = os.path.join(base_dir, "VectorRoute-Tools", "functions")
+        print(f"DEBUG: Functions folder set to: {functions_folder}")
+
+        # Build sets for matching
+        json_files = {}
+        for root, _, files in os.walk(capabilities_folder):
+            for fn in files:
+                if fn.endswith(".json"):
+                    name = os.path.splitext(fn)[0]
+                    json_files[name] = os.path.join(root, fn)
+
+        py_paths = []
+        for root, _, files in os.walk(functions_folder):
+            for fn in files:
+                if not fn.endswith(".py"):
+                    continue
+                if fn.startswith("_"):
+                    continue
+                py_paths.append(os.path.join(root, fn))
+
+        for py_path in py_paths:
+            tool_name = os.path.splitext(os.path.basename(py_path))[0]
+            if tool_name not in json_files:
+                continue
+
+            # Import module from file path
+            module_name = os.path.relpath(py_path, functions_folder).replace(os.sep, ".")
+            spec = importlib.util.spec_from_file_location(module_name, py_path)
+            if spec is None or spec.loader is None:
+                continue
+            module = importlib.util.module_from_spec(spec)
             try:
-                registry[name] = FileTracker._load_function(file_path, function_name)
+                spec.loader.exec_module(module)
             except Exception as e:
-                print(f"WARNING: Failed to load tool {name} from {file_path}: {e}")
+                continue
+
+            # Prefer attribute with same name
+            attr = getattr(module, tool_name, None)
+            if callable(attr):
+                registry[tool_name] = attr
+                continue
+
+            # Fallback: first public callable in module
+            for name in dir(module):
+                if name.startswith("_"):
+                    continue
+                candidate = getattr(module, name)
+                if callable(candidate):
+                    registry[tool_name] = candidate
+                    print(f"DEBUG: Registered tool {tool_name} with fallback callable {candidate}")
+                    break
+        print(f"Built tool registry with {len(registry)} tools: {list(registry.keys())}")
         return registry
 
-    # ---- File Change Detection --------------------------------------------
     def get_file_changes(self) -> defaultdict:
         """Detect file changes and update the SQLite database."""
-        conn = self._init_db()
-        stored = {
-            row["name"]: row for row in conn.execute("SELECT name, file_path, hash FROM tools").fetchall()
-        }
+
+        # stored = {
+        #     row["name"]: row for row in self.conn.execute("SELECT name, file_path, hash FROM tools").fetchall()
+        # }
+
+        stored = self.conn.execute("SELECT name, file_path, hash FROM tools").fetchall()
+        stored = {row[0]: {"file_path": row[1], "hash": row[2]} for row in stored}
 
         # Discover files on disk
         py_files = {}
@@ -164,14 +230,14 @@ class FileTracker:
             cur_hash = self._compute_file_hash(file_path)
             if name not in stored:
                 added.add(name)
-                conn.execute(
+                self.conn.execute(
                     "INSERT INTO tools (name, file_path, hash, module, function_name, last_loaded) VALUES (?, ?, ?, ?, ?, ?)",
                     (name, file_path, cur_hash, None, "main", datetime.now(timezone.utc).isoformat()),
                 )
                 self.log_change(f"py:{name}", "added", None, cur_hash, file_path)
             elif stored[name]["hash"] != cur_hash:
                 modified.add(name)
-                conn.execute(
+                self.conn.execute(
                     "UPDATE tools SET hash = ?, last_loaded = ? WHERE name = ?",
                     (cur_hash, datetime.now(timezone.utc).isoformat(), name),
                 )
@@ -180,15 +246,24 @@ class FileTracker:
         for name in stored:
             if name not in py_files:
                 deleted.add(name)
-                conn.execute("DELETE FROM tools WHERE name = ?", (name,))
+                self.conn.execute("DELETE FROM tools WHERE name = ?", (name,))
                 self.log_change(f"py:{name}", "deleted", stored[name]["hash"], None, stored[name]["file_path"])
 
-        conn.commit()
-        conn.close()
+        # # Update hashes for all files before returning the result
+        # for name, file_path in py_files.items():
+        #     self.update_hash_of_file(name, file_path, "py")
+
+        self.conn.commit()
 
         result = defaultdict(list)
         result["added"] = sorted(list(added))
         result["modified"] = sorted(list(modified))
         result["deleted"] = sorted(list(deleted))
+        print(f"File change detection result: {result}")
         return result
+
+    def close_connection(self) -> None:
+        """Close the database connection when done."""
+        if self.conn:
+            self.conn.close()
 

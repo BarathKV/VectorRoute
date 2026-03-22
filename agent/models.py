@@ -1,6 +1,8 @@
-from typing import List, Optional, Any
+from typing import Dict, List, Optional, Any
 
 import ollama
+
+from tools.db_connection import DBConnection
 from .validation import validate_and_coerce
 
 
@@ -26,7 +28,7 @@ class Task:
         from datetime import datetime
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"task_message_{timestamp}.json"
+        filename = f"io/task_msg_jsons/task_message_{timestamp}.json"
         # Convert message to a serializable dict if needed
         def make_serializable(obj):
             if isinstance(obj, dict):
@@ -46,17 +48,17 @@ class Task:
             json.dump(serializable_message, f, indent=2)
         print(f"DEBUG: Message dumped to {filename}")
 
-    def run(self) -> bool:
+    def run(self,db:DBConnection,model:str,tool_registry:Dict[str, callable]) -> bool:
         """Execute the task by routing the query, selecting tools, and interacting with the LLM."""
         try:
             # Corrected route_query call
-            suggested_tools = self.db.route_query(self.query)
+            suggested_tools = db.route_query(self.query)
 
             # Try to locate the capability JSON for the selected tool
             selected_tools = []
             if suggested_tools and suggested_tools != "No confident match":
                 # Load the tool doc from disk using DBConnection helper
-                tool_docs = self.db._load_tool_docs_map()
+                tool_docs = DBConnection._load_tool_docs_map()
                 if suggested_tools in tool_docs:
                     tool_data, _ = tool_docs[suggested_tools]
                     # Ensure the tool structure is exactly what Ollama expects
@@ -67,7 +69,7 @@ class Task:
             print(f"DEBUG: Selected tools: {selected_tools[0]['function']['name']}" if selected_tools else "DEBUG: No tools selected.")
 
             response = ollama.chat(
-                model=self.model,
+                model=model,
                 messages=self.message,
                 tools=selected_tools if selected_tools else None,
             )
@@ -85,11 +87,11 @@ class Task:
                     try:
                         print(f"DEBUG: Executing tool: {tool_name} with arguments: {arguments}")
                         validated_args = validate_and_coerce(
-                            arguments, self.tool_registry[tool_name]
+                            arguments, tool_registry[tool_name]
                         )
                         print(f"DEBUG: Validated arguments: {validated_args}")
 
-                        result = self.tool_registry[tool_name](**validated_args)
+                        result = tool_registry[tool_name](**validated_args)
 
                         print(f"Tool result: {result}")
 
@@ -104,7 +106,7 @@ class Task:
                         )
 
                         final = ollama.chat(
-                            model=self.model,
+                            model=model,
                             messages=self.message,
                         )
 

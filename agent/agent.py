@@ -50,13 +50,15 @@ class Agent:
         """
         # Initialize decomposer and executor
         decomposer = QueryDecomposer(model=self.model)
-        executor = TaskExecutor(agent=self, model=self.model)
+        executor = TaskExecutor(model=self.model)
+
+        messages = [{"role": "user", "content": user_input}]
 
         # 1. Decompose
         print(f"Decomposing query: {user_input}")
-        plan = decomposer.decompose(user_input)
+        plan = decomposer.decompose(user_input,messages=messages)
 
         # 2. Execute & 3. Aggregate
-        final_message, tools_used = executor.execute(plan)
+        final_message, tools_used = executor.execute(plan, self.db, self.tool_registry)
 
         return final_message, tools_used

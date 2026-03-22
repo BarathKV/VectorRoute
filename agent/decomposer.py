@@ -37,51 +37,47 @@ class QueryDecomposer:
 
         raise ValueError("Could not extract valid JSON from LLM response")
 
-    def decompose(self, user_query: str) -> ExecutionPlan:
+    def decompose(self, user_query: str, messages: List[dict]) -> ExecutionPlan:
         """Break the user query into atomic tasks using LLM."""
 
         system_prompt = """
-        You are NOT an assistant.
-        You are a QUERY DECOMPOSER.
+            You are NOT an assistant.
+            You are a QUERY DECOMPOSER.
 
-        Your job:
-        Split the user's query into smaller tasks.
+            Your job:
+            Split the user's query into tasks exactly as stated, without further breaking them down logically.
 
-        CRITICAL RULES:
-        - NEVER answer the query.
-        - NEVER explain anything.
-        - ONLY split the query into tasks.
-        - Return ONLY valid JSON.
+            RULES:
+            - NEVER answer the query.
+            - NEVER explain anything.
+            - DO NOT expand or subdivide tasks beyond what is explicitly mentioned.
+            - Preserve task phrasing as given in the query.
+            - ONLY return valid JSON.
 
-        If the query contains multiple operations, create multiple tasks.
+            Task dependency:
+            If a task depends on another, reference it using <TASK_1_RESULT>.
 
-        Task dependency rule:
-        If a task needs a previous task's result, reference it using <TASK_1_RESULT>.
+            OUTPUT FORMAT:
+            {
+            "tasks": [
+                {"id": 1, "query": "task text", "depends_on": []}
+            ]
+            }
 
-        OUTPUT FORMAT:
-        {
-        "tasks": [
-            {"id": 1, "query": "task text", "depends_on": []}
-        ]
-        }
+            Example:
 
-        Example:
+            Query: Find the weather in Tokyo and calculate loan EMI
 
-        Query: Find the weather in Tokyo and add 42 to 85
-
-        Output:
-        {
-        "tasks": [
-            {"id": 1, "query": "Find the weather in Tokyo", "depends_on": []},
-            {"id": 2, "query": "Add 42 to 85", "depends_on": []}
-        ]
-        }
+            Output:
+            {
+            "tasks": [
+                {"id": 1, "query": "Find the weather in Tokyo", "depends_on": []},
+                {"id": 2, "query": "Calculate loan EMI", "depends_on": []}
+            ]
+            }
         """
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_query},
-        ]
+        messages.insert(0, {"role": "system", "content": system_prompt})
 
         try:
             response = ollama.chat(
@@ -109,7 +105,11 @@ class QueryDecomposer:
 
             return ExecutionPlan(tasks)
 
+
         except Exception as e:
             print(f"Decomposition failed: {e}")
             # Return single task as fallback
             return ExecutionPlan([Task(id=1, query=user_query, depends_on=[])])
+
+        # tasks = [Task(id=1, query=user_query, depends_on=[])]
+        # return ExecutionPlan(tasks)

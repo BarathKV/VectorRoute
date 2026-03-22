@@ -1,6 +1,8 @@
 import json
 import ollama
 from typing import List, Dict, Any, Tuple
+
+from tools.db_connection import DBConnection
 from .models import ExecutionPlan
 
 class TaskExecutor:
@@ -26,7 +28,7 @@ class TaskExecutor:
                 resolved_query = resolved_query.replace(placeholder, result_text)
         return resolved_query
 
-    def execute(self, plan: ExecutionPlan) -> Tuple[str, List[str]]:
+    def execute(self, plan: ExecutionPlan, db: DBConnection, tool_registry: Dict[str, callable]) -> Tuple[str, List[str]]:
         """Process the tasks sequentially, respecting dependencies."""
         completed_tasks = {}
         all_tools_used = []
@@ -52,9 +54,9 @@ class TaskExecutor:
                     
                     print(f"Executing task {task.id}: {resolved_query}")
                     # Run the individual task through the Agent's existing tool-routing logic
-                    result, tools_used = self.agent.run(resolved_query)
+                    # result, tools_used = self.agent.run(resolved_query)
 
-                    if not task.run():
+                    if not task.run(db=db,model=self.model,tool_registry=tool_registry):
                         task.result = f"Execution failed for task {task.id}"
                         continue
 
@@ -63,9 +65,11 @@ class TaskExecutor:
                             task.result = task.get_result()
                         else:
                             task.result = task.get_context()
-                    
+
+                    tools_used = task.tools_used
+
                     task.status = "completed"
-                    completed_tasks[task.id] = result
+                    completed_tasks[task.id] = task.result
                     all_tools_used.extend(tools_used)
                     task_executed_in_this_pass = True
             

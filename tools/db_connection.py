@@ -158,12 +158,7 @@ class DBConnection:
         4. For each deleted tool  → _delete_tool() (hash row stays or can be
            pruned separately).
         """
-        # Accept externally computed changes (e.g. from a FileTracker) or
-        # compute them here using FileTracker.
-        # TODO: consider moving the FileTracker logic fully outside of this class so that DBConnection is only responsible for DB interactions and not file system tracking.
-        if changes is None:
-            ft = FileTracker()
-            changes = ft.get_file_changes()
+        # Accept externally computed changes (e.g. from a FileTracker)
 
         added = changes["added"]
         modified = changes["modified"]
@@ -178,28 +173,16 @@ class DBConnection:
 
         for tool_name in added:
             if tool_name in tool_docs:
-                tool_data, file_path = tool_docs[tool_name]
+                tool_data, _ = tool_docs[tool_name]
                 self._add_tool(tool_name, tool_data)
-                # Persist file hash via FileTracker
-                # TODO: consider decoupling the file hash tracking from the DBConnection class, as it currently has responsibilities both for managing the ChromaDB collection and for tracking file changes via FileTracker. This could lead to a cleaner separation of concerns if the file tracking logic is handled entirely outside of DBConnection, allowing DBConnection to focus solely on database interactions.
-                ft = FileTracker()
-                ft.update_hash_of_file(tool_name, file_path, "json")
 
         for tool_name in modified:
             if tool_name in tool_docs:
-                tool_data, file_path = tool_docs[tool_name]
+                tool_data, _ = tool_docs[tool_name]
                 self._update_tool(tool_name, tool_data)
-                # TODO: consider decoupling the file hash tracking from the DBConnection class, as it currently has responsibilities both for managing the ChromaDB collection and for tracking file changes via FileTracker. This could lead to a cleaner separation of concerns if the file tracking logic is handled entirely outside of DBConnection, allowing DBConnection to focus solely on database interactions.
-                ft = FileTracker()
-                ft.update_hash_of_file(tool_name, file_path, "json")
 
         for tool_name in deleted:
             self._delete_tool(tool_name)
-            # Also remove hashes recorded for this tool
-            # TODO: consider decoupling the file hash tracking from the DBConnection class, as it currently has responsibilities both for managing the ChromaDB collection and for tracking file changes via FileTracker. This could lead to a cleaner separation of concerns if the file tracking logic is handled entirely outside of DBConnection, allowing DBConnection to focus solely on database interactions.
-            ft = FileTracker()
-            ft.delete_hash(tool_name, "json")
-            ft.delete_hash(tool_name, "py")
 
         print(
             f"Sync complete  ➜  added={len(added)}  "
