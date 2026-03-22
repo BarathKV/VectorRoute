@@ -166,7 +166,7 @@ def main():
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
                 try:
-                    response, tools_used = st.session_state.agent.run_better(prompt)
+                    response, tools_used = st.session_state.agent.ask(prompt)
                     print(type(response))
                     print(f"\n\nFull agent response: {dict(response)}")
                     response = dict(response)['content']

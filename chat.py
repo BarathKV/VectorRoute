@@ -26,7 +26,7 @@ def main():
                 continue
 
             # response, tools_used = agent.run(user_input)
-            response, tools_used = agent.run_better(user_input)
+            response, tools_used = agent.ask(user_input)
             print(f"\n\nTools used: {tools_used}")
 
             response_dict = dict(response)

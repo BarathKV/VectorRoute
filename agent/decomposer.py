@@ -91,7 +91,7 @@ class QueryDecomposer:
                 format="json",
             )
             content = response["message"]["content"]
-            print(f"RAW DECOMPOSITION RESPONSE: {content}")
+            print(f"\n\nRAW DECOMPOSITION RESPONSE: {content}")
 
             data = self._extract_json(content)
 

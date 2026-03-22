@@ -1,16 +1,16 @@
 import json
 import ollama
 from typing import List, Dict, Any, Tuple
-from .models import Task, ExecutionPlan
+from .models import ExecutionPlan
 
 class TaskExecutor:
-    def __init__(self, agent, model: str = "llama3.1:8b"):
+    def __init__(self, model: str = "llama3.1:8b", small_context: bool = True):
         """
-        :param agent: The Agent instance to call its run() method for each sub-task.
         :param model: The LLM model to use for result aggregation.
+        :param small_context: Whether to use a small context for result aggregation.
         """
-        self.agent = agent
         self.model = model
+        self.small_context = small_context
 
     def resolve_placeholders(self, query: str, completed_tasks: Dict[int, Any]) -> str:
         """Replace placeholders like <TASK_X_RESULT> with actual results."""
@@ -53,8 +53,17 @@ class TaskExecutor:
                     print(f"Executing task {task.id}: {resolved_query}")
                     # Run the individual task through the Agent's existing tool-routing logic
                     result, tools_used = self.agent.run(resolved_query)
+
+                    if not task.run():
+                        task.result = f"Execution failed for task {task.id}"
+                        continue
+
+                    else:
+                        if self.small_context:
+                            task.result = task.get_result()
+                        else:
+                            task.result = task.get_context()
                     
-                    task.result = result
                     task.status = "completed"
                     completed_tasks[task.id] = result
                     all_tools_used.extend(tools_used)
