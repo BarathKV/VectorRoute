@@ -20,7 +20,7 @@ def check_logs():
         print(s)
 
     print("\n--- Ollama Calls ---")
-    cursor.execute("SELECT id, ask_id, model, timestamp FROM ollama_calls")
+    cursor.execute("SELECT * FROM ollama_calls")
     calls = cursor.fetchall()
     for c in calls:
         print(c)

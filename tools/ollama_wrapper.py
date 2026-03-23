@@ -13,6 +13,25 @@ current_ask_id: ContextVar[Optional[str]] = ContextVar("current_ask_id", default
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LOG_DB_PATH = os.path.join(BASE_DIR, "io", "ollama_logs.db")
 
+def make_serializable(obj):
+    """Recursively convert Ollama return objects/messages to serializable dicts."""
+    if isinstance(obj, dict):
+        return {k: make_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [make_serializable(i) for i in obj]
+    elif hasattr(obj, "model_dump"): # For Pydantic-based Ollama objects
+        return make_serializable(obj.model_dump())
+    elif hasattr(obj, "__dict__"):
+        return make_serializable(vars(obj))
+    elif hasattr(obj, "message"): # Handle ChatResponse directly if needed
+        return make_serializable(dict(obj))
+    else:
+        try:
+            json.dumps(obj)
+            return obj
+        except TypeError:
+            return str(obj)
+
 class OllamaLogger:
     def __init__(self, db_path: str = LOG_DB_PATH):
         self.db_path = db_path
@@ -63,22 +82,19 @@ class OllamaLogger:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # Convert response to dict if it's an ollama.ChatResponse or similar
-        resp_data = response
-        if not isinstance(response, (dict, str)):
-            try:
-                resp_data = dict(response)
-            except:
-                resp_data = str(response)
+        # Robust serialization for both input and output
+        serializable_messages = make_serializable(messages)
+        serializable_tools = make_serializable(tools) if tools else None
+        serializable_response = make_serializable(response)
 
         cursor.execute(
             "INSERT INTO ollama_calls (ask_id, model, messages, tools, response, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
             (
                 ask_id,
                 model,
-                json.dumps(messages),
-                json.dumps(tools) if tools else None,
-                json.dumps(resp_data),
+                json.dumps(serializable_messages),
+                json.dumps(serializable_tools) if serializable_tools else None,
+                json.dumps(serializable_response),
                 datetime.now().isoformat()
             )
         )
@@ -87,15 +103,20 @@ class OllamaLogger:
 
 logger = OllamaLogger()
 
-def chat_wrapper(model: str, messages: List[Dict], tools: Optional[List] = None, **kwargs):
+def chat_wrapper(model: str, messages: List[Dict], tools: Optional[List] = None, **kwargs) -> ollama.ChatResponse:
     """Wrapper for ollama.chat that logs the request and response."""
     ask_id = current_ask_id.get()
+    print(f"DEBUG: chat_wrapper called with ask_id: {ask_id}")
     
     # Call the original ollama.chat
     response = ollama.chat(model=model, messages=messages, tools=tools, **kwargs)
     
     # Log the interaction
-    logger.log_call(ask_id, model, messages, tools, response)
+    try:
+        logger.log_call(ask_id, model, messages, tools, response)
+        print(f"DEBUG: Logged ollama call for ask_id: {ask_id}")
+    except Exception as e:
+        print(f"DEBUG: Failed to log ollama call: {e}")
     
     return response
 

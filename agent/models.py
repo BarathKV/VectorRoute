@@ -1,9 +1,7 @@
 from typing import Dict, List, Optional, Any
 
-import ollama
-
 from tools.db_connection import DBConnection
-from tools.ollama_wrapper import chat_wrapper as ollama_chat
+from tools.ollama_wrapper import chat_wrapper as ollama_chat, make_serializable
 from .validation import validate_and_coerce
 
 
@@ -30,20 +28,7 @@ class Task:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"io/task_msg_jsons/task_message_{timestamp}.json"
-        # Convert message to a serializable dict if needed
-        def make_serializable(obj):
-            if isinstance(obj, dict):
-                return {k: make_serializable(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [make_serializable(i) for i in obj]
-            elif hasattr(obj, "__dict__"):
-                return make_serializable(vars(obj))
-            else:
-                try:
-                    json.dumps(obj)
-                    return obj
-                except TypeError:
-                    return str(obj)
+        
         serializable_message = make_serializable(self.message)
         with open(filename, "w") as f:
             json.dump(serializable_message, f, indent=2)
@@ -75,6 +60,8 @@ class Task:
                 tools=selected_tools if selected_tools else None,
             )
 
+            # print(f"DEBUG: LLM response: {response}")
+            # print(f"DEBUG: response.dict(): {response.dict()}")8
             current_message = response["message"]
 
             self.message.append(current_message)
