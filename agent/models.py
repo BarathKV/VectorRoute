@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Any
 import ollama
 
 from tools.db_connection import DBConnection
+from tools.ollama_wrapper import chat_wrapper as ollama_chat
 from .validation import validate_and_coerce
 
 
@@ -68,7 +69,7 @@ class Task:
 
             print(f"DEBUG: Selected tools: {selected_tools[0]['function']['name']}" if selected_tools else "DEBUG: No tools selected.")
 
-            response = ollama.chat(
+            response = ollama_chat(
                 model=model,
                 messages=self.message,
                 tools=selected_tools if selected_tools else None,
@@ -105,12 +106,14 @@ class Task:
                             }
                         )
 
-                        final = ollama.chat(
+                        final = ollama_chat(
                             model=model,
                             messages=self.message,
                         )
 
                         self.message.append(final["message"])
+                        self.result = final["message"]
+
                     except ValueError as error:
                         error_message = f"VALIDATION_ERROR:{error}"
                         print(f"DEBUG: Validation error: {error}")
@@ -140,9 +143,7 @@ class Task:
 
     def get_result(self) -> Optional[str]:
         """Return only the final LLM answer after the task is executed."""
-        if self.message:
-            return self.message[-1].get("content")
-        return None
+        return self.result
 
 
 class ExecutionPlan:

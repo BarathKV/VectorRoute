@@ -4,6 +4,7 @@ from tools.db_connection import DBConnection
 from tools.file_tracker import FileTracker
 from .decomposer import QueryDecomposer
 from .executor import TaskExecutor
+from tools.ollama_wrapper import AskSession
 
 
 class Agent:
@@ -44,21 +45,22 @@ class Agent:
         """A more advanced execution pipeline using query decomposition.
 
         Steps:
-        1. Decompose the user query into atomic tasks with potential dependencies.
+        1. Decomposed to atomic tasks with potential dependencies.
         2. Execute each task sequentially while resolving dependencies.
         3. Aggregate all task results into a single final response.
         """
-        # Initialize decomposer and executor
-        decomposer = QueryDecomposer(model=self.model)
-        executor = TaskExecutor(model=self.model)
+        with AskSession(user_input, model=self.model) as ask_id:
+            # Initialize decomposer and executor
+            decomposer = QueryDecomposer(model=self.model)
+            executor = TaskExecutor(model=self.model)
 
-        messages = [{"role": "user", "content": user_input}]
+            messages = [{"role": "user", "content": user_input}]
 
-        # 1. Decompose
-        print(f"Decomposing query: {user_input}")
-        plan = decomposer.decompose(user_input,messages=messages)
+            # 1. Decompose
+            print(f"Decomposing query: {user_input} (ask_id: {ask_id})")
+            plan = decomposer.decompose(user_input, messages=messages)
 
-        # 2. Execute & 3. Aggregate
-        final_message, tools_used = executor.execute(plan, self.db, self.tool_registry)
+            # 2. Execute & 3. Aggregate
+            final_message, tools_used = executor.execute(plan, self.db, self.tool_registry)
 
-        return final_message, tools_used
+            return final_message, tools_used

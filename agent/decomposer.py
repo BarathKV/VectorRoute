@@ -1,6 +1,6 @@
 import json
-import ollama
 from typing import List
+from tools.ollama_wrapper import chat_wrapper as ollama_chat
 from .models import Task, ExecutionPlan
 
 
@@ -80,7 +80,7 @@ class QueryDecomposer:
         messages.insert(0, {"role": "system", "content": system_prompt})
 
         try:
-            response = ollama.chat(
+            response = ollama_chat(
                 model=self.model,
                 messages=messages,
                 options={"temperature": 0.0, "top_p": 0.9},
