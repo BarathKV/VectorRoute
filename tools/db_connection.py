@@ -347,3 +347,35 @@ class DBConnection:
                     print(f"  ⚠ Error processing {fpath}: {e}")
 
         return tool_map
+
+    @staticmethod
+    def load_tool_context() -> dict:
+        """
+        Load all capability JSON files and return a dict:
+        { tool_name: filtered_json }
+        excluding 'example_user_queries'.
+        """
+        tool_context = {}
+        caps_folder = os.path.join(BASE_DIR, "VectorRoute-Tools", "capabilities")
+
+        for root, _, files in os.walk(caps_folder):
+            for fname in files:
+                if not fname.endswith(".json"):
+                    continue
+                tool_name = os.path.splitext(fname)[0]
+                fpath = os.path.join(root, fname)
+                try:
+                    with open(fpath, "r") as f:
+                        content = json.load(f)
+
+                        # Remove 'example_user_queries' from the loaded content
+                        content["function"].pop("example_user_queries", None)
+
+                        tool_context[tool_name] = content
+
+                except json.JSONDecodeError:
+                    print(f"  ⚠ Skipping invalid JSON: {fpath}")
+                except Exception as e:
+                    print(f"  ⚠ Error processing {fpath}: {e}")
+
+        return tool_context

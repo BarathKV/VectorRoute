@@ -89,11 +89,15 @@ class OllamaLogger:
     def log_call(self, ask_id: Optional[str], model: str, messages: List[Dict], tools: Optional[List], response: Any):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+
+        print(f"\n\nLOGGER DEBUG: Logging call for ask_id: {ask_id}, model: {model}")
         
         # Robust serialization for both input and output
         serializable_messages = make_serializable(messages)
         serializable_tools = make_serializable(tools) if tools else None
         serializable_response = make_serializable(response)
+
+        print(f"\n\nLOGGER DEBUG: Serializable response: {serializable_response}")
 
         # Extract commonly returned fields from Ollama response if available
         response_text = None
