@@ -79,37 +79,37 @@ class QueryDecomposer:
 
         messages.insert(0, {"role": "system", "content": system_prompt})
 
-        try:
-            response = ollama_chat(
-                model=self.model,
-                messages=messages,
-                options={"temperature": 0.0, "top_p": 0.9},
-                format="json",
-            )
-            content = response["message"]["content"]
-            print(f"\n\nRAW DECOMPOSITION RESPONSE: {content}")
+        # try:
+        #     response = ollama_chat(
+        #         model=self.model,
+        #         messages=messages,
+        #         options={"temperature": 0.0, "top_p": 0.9},
+        #         format="json",
+        #     )
+        #     content = response["message"]["content"]
+        #     print(f"\n\nRAW DECOMPOSITION RESPONSE: {content}")
 
-            data = self._extract_json(content)
+        #     data = self._extract_json(content)
 
-            tasks = []
-            for t in data.get("tasks", []):
-                tasks.append(
-                    Task(
-                        id=t["id"], query=t["query"], depends_on=t.get("depends_on", [])
-                    )
-                )
+        #     tasks = []
+        #     for t in data.get("tasks", []):
+        #         tasks.append(
+        #             Task(
+        #                 id=t["id"], query=t["query"], depends_on=t.get("depends_on", [])
+        #             )
+        #         )
 
-            if not tasks:
-                # Fallback to single task if decomposition fails
-                tasks = [Task(id=1, query=user_query, depends_on=[])]
+        #     if not tasks:
+        #         # Fallback to single task if decomposition fails
+        #         tasks = [Task(id=1, query=user_query, depends_on=[])]
 
-            return ExecutionPlan(tasks)
+        #     return ExecutionPlan(tasks)
 
 
-        except Exception as e:
-            print(f"Decomposition failed: {e}")
-            # Return single task as fallback
-            return ExecutionPlan([Task(id=1, query=user_query, depends_on=[])])
+        # except Exception as e:
+        #     print(f"Decomposition failed: {e}")
+        #     # Return single task as fallback
+        #     return ExecutionPlan([Task(id=1, query=user_query, depends_on=[])])
 
-        # tasks = [Task(id=1, query=user_query, depends_on=[])]
-        # return ExecutionPlan(tasks)
+        tasks = [Task(id=1, query=user_query, depends_on=[])]
+        return ExecutionPlan(tasks)

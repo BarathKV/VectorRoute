@@ -41,7 +41,6 @@ class OllamaLogger:
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        
         # Table for ask sessions
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ask_sessions (
@@ -51,8 +50,8 @@ class OllamaLogger:
                 parameters TEXT
             )
         ''')
-        
-        # Table for individual ollama calls
+
+        # Table for individual ollama calls with separate columns for response fields
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS ollama_calls (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +59,16 @@ class OllamaLogger:
                 model TEXT,
                 messages TEXT,
                 tools TEXT,
-                response TEXT,
+                response_text TEXT,
+                created_at TEXT,
+                done INTEGER,
+                context TEXT,
+                total_duration INTEGER,
+                load_duration INTEGER,
+                prompt_eval_count INTEGER,
+                prompt_eval_duration INTEGER,
+                eval_count INTEGER,
+                eval_duration INTEGER,
                 timestamp TIMESTAMP,
                 FOREIGN KEY (ask_id) REFERENCES ask_sessions (ask_id)
             )
@@ -87,14 +95,53 @@ class OllamaLogger:
         serializable_tools = make_serializable(tools) if tools else None
         serializable_response = make_serializable(response)
 
+        # Extract commonly returned fields from Ollama response if available
+        response_text = None
+        created_at = None
+        done = None
+        context_field = None
+        total_duration = None
+        load_duration = None
+        prompt_eval_count = None
+        prompt_eval_duration = None
+        eval_count = None
+        eval_duration = None
+
+        if isinstance(serializable_response, dict):
+            response_text = serializable_response.get('response')
+            created_at = serializable_response.get('created_at')
+            done = 1 if serializable_response.get('done') else 0 if 'done' in serializable_response else None
+            context_field = serializable_response.get('context')
+            total_duration = serializable_response.get('total_duration')
+            load_duration = serializable_response.get('load_duration')
+            prompt_eval_count = serializable_response.get('prompt_eval_count')
+            prompt_eval_duration = serializable_response.get('prompt_eval_duration')
+            eval_count = serializable_response.get('eval_count')
+            eval_duration = serializable_response.get('eval_duration')
+        else:
+            # Not a dict — stringify for storage
+            try:
+                response_text = json.dumps(serializable_response)
+            except Exception:
+                response_text = str(serializable_response)
+
         cursor.execute(
-            "INSERT INTO ollama_calls (ask_id, model, messages, tools, response, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO ollama_calls (ask_id, model, messages, tools, response_text, created_at, done, context, total_duration, load_duration, prompt_eval_count, prompt_eval_duration, eval_count, eval_duration, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 ask_id,
                 model,
                 json.dumps(serializable_messages),
                 json.dumps(serializable_tools) if serializable_tools else None,
-                json.dumps(serializable_response),
+                response_text,
+                created_at,
+                done,
+                json.dumps(context_field) if context_field is not None else None,
+                int(total_duration) if total_duration is not None else None,
+                int(load_duration) if load_duration is not None else None,
+                int(prompt_eval_count) if prompt_eval_count is not None else None,
+                int(prompt_eval_duration) if prompt_eval_duration is not None else None,
+                int(eval_count) if eval_count is not None else None,
+                int(eval_duration) if eval_duration is not None else None,
                 datetime.now().isoformat()
             )
         )
@@ -124,7 +171,7 @@ def chat_wrapper(model: str, messages: List[Dict], tools: Optional[List] = None,
 class AskSession:
     def __init__(self, user_input: str, **parameters):
         self.ask_id = str(uuid.uuid4())
-        self.user_input = user_input
+        self.user_input = user_input 
         self.parameters = parameters
         self.token = None
 

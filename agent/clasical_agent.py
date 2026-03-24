@@ -1,70 +1,48 @@
-import ollama
-from pydantic import BaseModel
+from typing import Optional, Tuple
 
-class Tool(BaseModel):
-    name: str
-    description: str
-    parameters: dict
+from .models import Task
+from tools.file_tracker import FileTracker
+from tools.db_connection import DBConnection
+
 
 class ClassicalAgent:
-    def __init__(self, tool_registry, tools_embeddings, model: str = "functiongemma:latest"):
+    def __init__(self, tool_registry=None, tools_embeddings=None, model: str = "functiongemma:latest"):
         self.tools_embeddings = tools_embeddings
         self.tool_registry = tool_registry
         self.model = model
 
-    def run(self, user_input: str) -> tuple[str, list]:
-        tools_called = []
-        messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are an assistant. "
-                    "Use tools only if necessary."
-                ),
-            },
-            {"role": "user", "content": user_input},
-        ]
-        # print(f"Tool registry: {self.tool_registry}")
+    def run(self, user_input: str, db: Optional[DBConnection] = None) -> Tuple[Optional[str], list]:
+        """Create a Task and delegate execution to `Task.run()`.
 
-        # Convert tool_registry to a list of Tool objects
-        tools = [
-            Tool(
-                name=name,
-                description=f"Function {name} from the tool registry.",
-                parameters={"type": "object", "properties": {}}
-            ).dict() for name in self.tool_registry.keys()
-        ]
+        - Uses `FileTracker.get_tool_registry()` to build the tool registry.
+        - If `db` is not provided, a default `DBConnection()` will be created.
+        Returns a tuple: (final_result_or_error, tools_used_list)
+        """
+        # Ensure we have a DB connection
+        if db is None:
+            try:
+                db = DBConnection()
+            except Exception:
+                db = None
 
-        response = ollama.chat(
-            model=self.model,
-            messages=messages,
-            tools=tools if tools else None,
-        )
+        # Build tool registry from files on disk (preferred)
+        try:
+            tool_registry = FileTracker.get_tool_registry()
+        except Exception:
+            # Fallback to any provided registry
+            tool_registry = self.tool_registry or {}
 
-        message = response["message"]
+        task = Task(id=0, query=user_input)
 
-        if "tool_calls" in message:
-            for tool_call in message["tool_calls"]:
-                tool_name = tool_call["function"]["name"]
-                arguments = tool_call["function"]["arguments"]
+        result = task.run(db, self.model, tool_registry)
 
-                result = self.tool_registry[tool_name](**arguments)
+        # `Task.run` may return True on success, or (error_message, tools_used) on failures
+        if isinstance(result, tuple) and len(result) == 2:
+            return result[0], result[1]
 
-                messages.append(message)
-                tools_called.append(tool_name)
-                messages.append({
-                    "role": "tool",
-                    "tool_name": tool_name,
-                    "content": str(result),
-                })
+        if result is True:
+            final = task.get_result()
+            return final, task.tools_used
 
-                final = ollama.chat(
-                    model=self.model,
-                    messages=messages,
-                    tools=tools if tools else None,
-                )
-                print(f"Final response after tool execution: {final['message']['content']}")
-                return final["message"]["content"], tools_called
-
-        print(f"Final response without tool execution: {message['content']}")
-        return message["content"], tools_called
+        # result was False or unexpected
+        return None, task.tools_used
