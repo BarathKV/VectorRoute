@@ -1,3 +1,4 @@
+import random
 import sqlite3
 import os
 import json
@@ -156,30 +157,46 @@ if __name__ == "__main__":
 
             for ask_id in chosen:
                 for j in range(2):
+                    # --- Random Metric Generation ---
+                    # Counts (Tokens)
+                    p_eval_count = random.randint(10, 100)  # Prompt tokens
+                    e_count = random.randint(50, 500)      # Response tokens
+                    
+                    # Durations (in nanoseconds)
+                    # 1ms = 1,000,000 ns
+                    load_dur = random.randint(1_000_000, 5_000_000)      # 1-5ms
+                    p_eval_dur = p_eval_count * random.randint(500_000, 1_500_000) # ~1ms per token
+                    e_dur = e_count * random.randint(20_000_000, 40_000_000)       # ~30ms per token
+                    total_dur = load_dur + p_eval_dur + e_dur + random.randint(10_000_000, 50_000_000)
+
                     model = "seed-model"
                     messages = json.dumps([{"role": "user", "content": f"call {j} for {ask_id}"}])
-                    tools = None
                     response_text = f"seed response for {ask_id} ({j})"
                     created_at = datetime.now().isoformat()
-                    done = 1
                     context = json.dumps({"seed": True})
+
                     cursor.execute(
-                        "INSERT INTO ollama_calls (ask_id, model, messages, tools, response_text, created_at, done, context, total_duration, load_duration, prompt_eval_count, prompt_eval_duration, eval_count, eval_duration, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        """INSERT INTO ollama_calls (
+                            ask_id, model, messages, tools, response_text, created_at, 
+                            done, context, total_duration, load_duration, 
+                            prompt_eval_count, prompt_eval_duration, eval_count, 
+                            eval_duration, timestamp
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             ask_id,
                             model,
                             messages,
-                            json.dumps(tools) if tools is not None else None,
+                            None,
                             response_text,
                             created_at,
-                            done,
+                            1, # done
                             context,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
+                            total_dur,
+                            load_dur,
+                            p_eval_count,
+                            p_eval_dur,
+                            e_count,
+                            e_dur,
                             datetime.now().isoformat(),
                         ),
                     )
