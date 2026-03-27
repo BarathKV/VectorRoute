@@ -7,7 +7,7 @@ from datetime import datetime
 import argparse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "io", "ollama_logs.db")
+DB_PATH = os.path.join(BASE_DIR, "..", "io", "ollama_logs.db")
 
 def check_logs():
     if not os.path.exists(DB_PATH):
@@ -61,23 +61,23 @@ if __name__ == "__main__":
             ''')
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS ollama_calls (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    ask_id TEXT,
-                    model TEXT,
-                    messages TEXT,
-                    tools TEXT,
-                    response_text TEXT,
-                    created_at TEXT,
-                    done INTEGER,
-                    context TEXT,
-                    total_duration INTEGER,
-                    load_duration INTEGER,
-                    prompt_eval_count INTEGER,
-                    prompt_eval_duration INTEGER,
-                    eval_count INTEGER,
-                    eval_duration INTEGER,
-                    timestamp TIMESTAMP,
-                    FOREIGN KEY (ask_id) REFERENCES ask_sessions (ask_id)
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ask_id TEXT,
+                model TEXT,
+                created_at TEXT,
+                done INTEGER,
+                done_reason TEXT,
+                total_duration INTEGER,
+                load_duration INTEGER,
+                prompt_eval_count INTEGER,
+                prompt_eval_duration INTEGER,
+                eval_count INTEGER,
+                eval_duration INTEGER,
+                reponse_message TEXT,
+                messages TEXT,
+                tools TEXT,
+                timestamp TIMESTAMP,
+                FOREIGN KEY (ask_id) REFERENCES ask_sessions (ask_id)
                 )
             ''')
             conn.commit()
@@ -128,10 +128,10 @@ if __name__ == "__main__":
             _ensure_tables()
             # Ensure required columns exist in ollama_calls to avoid INSERT failures
             required_columns = {
-                "response_text": "TEXT",
+                "reponse_message": "TEXT",
                 "created_at": "TEXT",
                 "done": "INTEGER",
-                "context": "TEXT",
+                "done_reason": "TEXT",
                 "total_duration": "INTEGER",
                 "load_duration": "INTEGER",
                 "prompt_eval_count": "INTEGER",
@@ -177,26 +177,25 @@ if __name__ == "__main__":
 
                     cursor.execute(
                         """INSERT INTO ollama_calls (
-                            ask_id, model, messages, tools, response_text, created_at, 
-                            done, context, total_duration, load_duration, 
-                            prompt_eval_count, prompt_eval_duration, eval_count, 
-                            eval_duration, timestamp
+                            ask_id, model, created_at, done, done_reason, total_duration, load_duration,
+                            prompt_eval_count, prompt_eval_duration, eval_count, eval_duration,
+                            reponse_message, messages, tools, timestamp
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (
                             ask_id,
                             model,
-                            messages,
-                            None,
-                            response_text,
                             created_at,
-                            1, # done
-                            context,
+                            1,  # done
+                            None,  # done_reason
                             total_dur,
                             load_dur,
                             p_eval_count,
                             p_eval_dur,
                             e_count,
                             e_dur,
+                            response_text,
+                            messages,
+                            None,
                             datetime.now().isoformat(),
                         ),
                     )

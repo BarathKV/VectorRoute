@@ -25,7 +25,7 @@ except Exception as e:
 def default_db_path() -> str:
     # Default to repo-root/io/ollama_logs.db
     root = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(root, "io", "ollama_logs.db")
+    return os.path.join(root,"..", "io", "ollama_logs.db")
 
 
 def list_tables(conn: sqlite3.Connection):
