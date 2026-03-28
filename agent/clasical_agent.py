@@ -10,13 +10,7 @@ class ClassicalAgent:
         self.tool_registry = tool_registry
         self.model = model
 
-    def run(self, user_input: str, db: Optional[DBConnection] = None) -> Tuple[Optional[str], list]:
-        """Create a Task and delegate execution to `Task.run()`.
-
-        - Uses `FileTracker.get_tool_registry()` to build the tool registry.
-        - If `db` is not provided, a default `DBConnection()` will be created.
-        Returns a tuple: (final_result_or_error, tools_used_list)
-        """
+    def run(self, user_input: str) -> Tuple[Optional[str], list]:
         messages = []
         tools_used = []
 

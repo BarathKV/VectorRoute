@@ -27,6 +27,13 @@ class DBConnection:
         Establish a persistent ChromaDB client and get/create the
         tool_embeddings collection.
         """
+        # Validate chosen similarity / HNSW space
+        allowed_spaces = {"cosine", "l2", "ip"}
+        if similarity_methods not in allowed_spaces:
+            raise ValueError(
+                f"similarity_methods must be one of {sorted(allowed_spaces)}, got: {similarity_methods!r}"
+            )
+
         self.client = chromadb.PersistentClient(path=db_path)
         self.collection = self.client.get_or_create_collection(
             name=COLLECTION_NAME,
@@ -34,29 +41,12 @@ class DBConnection:
         )
         print(
             f"ChromaDB connected - collection '{COLLECTION_NAME}' "
-            f"({self.collection.count()} tools stored)"
+            f"({self.collection.count()} tools stored) - hnsw_space='{similarity_methods}'"
         )
         # capabilities folder path for loading docs
         self.capabilities_folder = os.path.join(
             BASE_DIR, "VectorRoute-Tools", "capabilities"
         )
-
-    # ── Private helpers ──────────────────────────────────────────────────
-
-    # def _build_document(self, tool_data: dict) -> str:
-    #     """
-    #     Turn a capability JSON dict into the text that will be embedded.
-    #     Uses the function name + description + parameter descriptions.
-    #     """
-    #     func = tool_data.get("function", {})
-    #     parts = [
-    #         func.get("name", ""),
-    #         func.get("description", ""),
-    #     ]
-    #     params = func.get("parameters", {}).get("properties", {})
-    #     for param_name, param_info in params.items():
-    #         parts.append(f"{param_name}: {param_info.get('description', '')}")
-    #     return " | ".join(parts)
 
     def _add_tool(self, tool_name: str, tool_data: dict) -> None:
         """
@@ -269,10 +259,13 @@ class DBConnection:
         count = Counter(tools_found).most_common()  # tool_name -> count of example-query matches
         print(f"Tool counts from example-query search: {dict(count)}")
 
+        final_tools = []
+
         for tool_name, c in dict(count).items():
             if c >= min_example_hits:
-                return tool_name
-        return "No confident match"
+                final_tools.append(tool_name)
+        
+        return final_tools if final_tools else ["No confident match"]
 
         # tools_found = [m["tool"] for m in results["metadatas"][0]]
         # # print(f"Tools found in example-query search: {list(tools_found)}")
@@ -366,10 +359,16 @@ class DBConnection:
                 fpath = os.path.join(root, fname)
                 try:
                     with open(fpath, "r") as f:
-                        content = json.load(f)
+                        content = json.load(f)["function"]
 
                         # Remove 'example_user_queries' from the loaded content
-                        content["function"].pop("example_user_queries", None)
+                        content.pop("example_user_queries", None)
+
+                        #Remove 'long_description' from the loaded content
+                        content.pop("long_description", None)
+
+                        #Remove 'domain' from the loaded content
+                        content.pop("domain", None)
 
                         tool_context[tool_name] = content
 

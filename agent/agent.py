@@ -98,15 +98,18 @@ class Agent:
 
             selected_tools = []
 
-            if suggested_tools and suggested_tools != "No confident match":
+            #TODO: Handle 1 to n tools
+
+            if suggested_tools and suggested_tools != ["No confident match"]:
                 # Load the tool doc from disk using DBConnection helper
                 tool_docs = DBConnection._load_tool_docs_map()
-                if suggested_tools in tool_docs:
-                    tool_data, _ = tool_docs[suggested_tools]
-                    # Ensure the tool structure is exactly what Ollama expects
-                    selected_tools = [tool_data]
-                else:
-                    print(f"DEBUG: Tool '{suggested_tools}' not found in registry.")
+                for tool in suggested_tools:
+                    if tool in tool_docs:
+                        tool_data, _ = tool_docs[suggested_tools]
+                        # Ensure the tool structure is exactly what Ollama expects
+                        selected_tools = [tool_data]
+                    else:
+                        print(f"DEBUG: Tool '{suggested_tools}' not found in registry.")
 
             print(f"DEBUG: Selected tools: {selected_tools[0]['function']['name']}" if selected_tools else "DEBUG: No tools selected.")
 

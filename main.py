@@ -2,6 +2,7 @@ import csv
 import argparse
 from agent.agent import Agent
 from agent.clasical_agent import ClassicalAgent
+from tools.db_connection import DBConnection
 
 
 def verify_queries(csv_path: str, agent, limit: int = None):
@@ -30,37 +31,76 @@ def verify_queries(csv_path: str, agent, limit: int = None):
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description="Verify agent tool selection against queries.csv")
-    # parser.add_argument("--limit", type=int, default=4, help="Limit number of queries to check (default 4)")
-    # parser.add_argument("--classical", action="store_true", help="Use ClassicalAgent instead of Agent")
-    # parser.add_argument("--csv", type=str, default="queries.csv", help="Path to CSV file (default queries.csv)")
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser(
+        description="Verify agent tool selection against queries.csv"
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="Limit number of queries to check (default 4)",
+    )
+    parser.add_argument(
+        "--classical", action="store_true", help="Use ClassicalAgent instead of Agent"
+    )
+    parser.add_argument(
+        "--csv",
+        type=str,
+        default="io/queries.csv",
+        help="Path to CSV file (default queries.csv)",
+    )
 
-    # agent = ClassicalAgent(model="functiongemma:latest") if args.classical else Agent(model="functiongemma:latest")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="functiongemma:latest",
+        help="Model to use for the agent (default functiongemma:latest)",
+    )
 
-    # results = verify_queries(args.csv, agent, limit=args.limit)
+    parser.add_argument(
+        "--similarity",
+        type=str,
+        default="cosine",
+        help="Similarity method for tool retrieval (default cosine)",
+    )
+    args = parser.parse_args()
 
-    # total = len(results)
-    # matches = sum(1 for r in results if r[3] is True)
-    # errors = [r for r in results if r[4]]
+    if args.similarity not in ["cosine", "ip", "l2"]:
+        args.similarity = "cosine"
 
-    # print(f"Checked {total} queries. Matches: {matches}. Mismatches: {total - matches}.")
-    # if errors:
-    #     print("Errors during runs:")
-    #     for e in errors:
-    #         print(f"#{e[0]} expected={e[1]} error={e[4]}")
+    db = DBConnection(similarity=args.similarity)
 
-    # if total - matches > 0:
-    #     print("Sample mismatches:")
-    #     for idx, expected, used, match, err in results:
-    #         if not match and not err:
-    #             print(f"#{idx} expected={expected} used={used}")
-    #             # show up to 10 mismatches
-    #             total -= 1
-    #             if total < 0:
-    #                 break
+    agent = (
+        ClassicalAgent(model=args.model, db=db)
+        if args.classical
+        else Agent(model=args.model, db=db)
+    )
 
-    agent = Agent(model="functiongemma:latest")
-    response, tools_used = agent.run("What is the weather in New York?")
-    print(f"Response: {response}")
-    print(f"Tools used: {tools_used}")
+    results = verify_queries(args.csv, agent, limit=args.limit)
+
+    total = len(results)
+    matches = sum(1 for r in results if r[3] is True)
+    errors = [r for r in results if r[4]]
+
+    print(
+        f"Checked {total} queries. Matches: {matches}. Mismatches: {total - matches}."
+    )
+    if errors:
+        print("Errors during runs:")
+        for e in errors:
+            print(f"#{e[0]} expected={e[1]} error={e[4]}")
+
+    if total - matches > 0:
+        print("Sample mismatches:")
+        for idx, expected, used, match, err in results:
+            if not match and not err:
+                print(f"#{idx} expected={expected} used={used}")
+                # show up to 10 mismatches
+                total -= 1
+                if total < 0:
+                    break
+
+    # agent = Agent(model="functiongemma:latest")
+    # response, tools_used = agent.run("What is the weather in New York?")
+    # print(f"Response: {response}")
+    # print(f"Tools used: {tools_used}")
