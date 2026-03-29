@@ -68,7 +68,7 @@ if __name__ == "__main__":
     if args.similarity not in ["cosine", "ip", "l2"]:
         args.similarity = "cosine"
 
-    db = DBConnection(similarity=args.similarity)
+    db = DBConnection(similarity_methods=args.similarity)
 
     agent = (
         ClassicalAgent(model=args.model, db=db)
@@ -77,6 +77,7 @@ if __name__ == "__main__":
     )
 
     results = verify_queries(args.csv, agent, limit=args.limit)
+    print(results)
 
     total = len(results)
     matches = sum(1 for r in results if r[3] is True)

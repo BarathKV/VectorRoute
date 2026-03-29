@@ -264,6 +264,7 @@ class DBConnection:
         for tool_name, c in dict(count).items():
             if c >= min_example_hits:
                 final_tools.append(tool_name)
+
         
         return final_tools if final_tools else ["No confident match"]
 

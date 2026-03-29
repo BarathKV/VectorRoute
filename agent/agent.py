@@ -90,11 +90,18 @@ class Agent:
 
     def run(self, user_input: str) -> Tuple[dict, List[str]]:
 
+
+
         with AskSession(user_input, model=self.model) as ask_id:
             print(f"Processing query: {user_input} (ask_id: {ask_id})")
             tools_used = []
 
             suggested_tools = self.db.route_query(user_input)
+
+            print("\n\n DEBUG: Suggested tools from DB routing:")
+            for tool in suggested_tools:
+                print(f"  - {tool}")
+            print("\n\n")
 
             selected_tools = []
 
@@ -105,11 +112,10 @@ class Agent:
                 tool_docs = DBConnection._load_tool_docs_map()
                 for tool in suggested_tools:
                     if tool in tool_docs:
-                        tool_data, _ = tool_docs[suggested_tools]
-                        # Ensure the tool structure is exactly what Ollama expects
-                        selected_tools = [tool_data]
+                        tool_data, _ = tool_docs[tool]
+                        selected_tools.append(tool_data)
                     else:
-                        print(f"DEBUG: Tool '{suggested_tools}' not found in registry.")
+                        print(f"DEBUG: Tool '{tool}' not found in registry.")
 
             print(f"DEBUG: Selected tools: {selected_tools[0]['function']['name']}" if selected_tools else "DEBUG: No tools selected.")
 
