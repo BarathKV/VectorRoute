@@ -1,0 +1,1087 @@
+╔════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                        VECTORROUTE SYSTEM ARCHITECTURE - CLASS AND FUNCTION CALL FLOWS                             ║
+╚════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 1: INITIALIZATION FLOW - Agent Instantiation
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                                    ┌─────────────────────┐
+                                    │   main.py           │
+                                    │  (Entry Point)      │
+                                    └──────────┬──────────┘
+                                               │
+                                    Agent(model, db, tracker)
+                                               │
+                                               ▼
+                                 ┌──────────────────────────┐
+                                 │   Agent.__init__()       │
+                                 │  - Set model name        │
+                                 │  - Create/Use tracker    │
+                                 │  - Create/Use db         │
+                                 └──────────┬───────────────┘
+                                            │
+                        ┌───────────────────┼───────────────────┐
+                        │                   │                   │
+                        ▼                   ▼                   ▼
+          ┌──────────────────────┐  ┌──────────────────┐  ┌────────────────────┐
+          │  FileTracker()       │  │  DBConnection()  │  │  Ollama Instance   │
+          │ ──────────────────   │  │ ─────────────    │  │  (runs separately) │
+          │ .capabilities_folder │  │ .client (Chroma) │  └────────────────────┘
+          │ .functions_folder    │  │ .collection      │
+          │ .db_path             │  │ .similarity      │
+          │ ._init_db()          │  │    _method       │
+          └──────────┬───────────┘  └────────┬─────────┘
+                     │                       │
+                     │                       │
+        get_file_changes()        update_db(changes)
+                     │                       │
+                     ▼                       ▼
+        ┌──────────────────────────┐  ┌──────────────────────┐
+        │ Returns:                 │  │ DBConnection Updates │
+        │ - new_tools: set         │  │ - Adds embeddings    │
+        │ - modified_tools: set    │  │ - Updates Chroma DB  │
+        │ - deleted_tools: set     │  │ - Indexes tools      │
+        └──────────────────────────┘  └──────────────────────┘
+                     │
+                     │ db.update_db(changes)
+                     ▼
+        ┌──────────────────────────────────┐
+        │ For each tool in changed_tools:  │
+        │ ├─ Load capability JSON          │
+        │ ├─ Load function implementation  │
+        │ ├─ Compute embedding             │
+        │ └─ Add to ChromaDB collection    │
+        └──────────────────────────────────┘
+                     │
+                     ▼
+        ┌──────────────────────────┐
+        │ get_tool_registry()      │
+        │ Returns: Dict[str, func] │
+        │ tool_name → callable     │
+        └──────────────────────────┘
+                     │
+                     ├─> date_operations.add_days()
+                     ├─> date_operations.get_current_date()
+                     ├─> weather.get_current_weather()
+                     ├─> math_utilities.gcd()
+                     └─> ... (all other tools)
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 2: CLASSICAL AGENT FLOW - Simple Tool Selection
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                         ┌─────────────────────────────┐
+                         │  ClassicalAgent.run()       │
+                         │  Input: user_input (query)  │
+                         └──────────┬──────────────────┘
+                                    │
+                    ┌───────────────┼───────────────┐
+                    │               │               │
+                    ▼               ▼               ▼
+        ┌─────────────────┐  ┌─────────────┐  ┌──────────────┐
+        │ load_tool_      │  │  Ollama     │  │ tool_registry│
+        │ context()       │  │  Instance   │  │ (Dict)       │
+        └────────┬────────┘  └─────────────┘  └──────────────┘
+                 │
+                 │
+                 ▼
+     ┌─────────────────────────────────────┐
+     │ ollama_chat()                       │
+     │ ─────────────────────────────────── │
+     │ POST /api/chat                      │
+     │ ├─ model: "functiongemma:latest"   │
+     │ ├─ messages: [{role, content}]     │
+     │ └─ tools: [tool_definitions]       │
+     └────────┬────────────────────────────┘
+              │
+              ▼
+     ┌───────────────────────────────────┐
+     │ Ollama Response:                  │
+     │ {                                  │
+     │   "message": {                    │
+     │     "role": "assistant",          │
+     │     "content": "text",            │
+     │     "tool_calls": [...]           │
+     │   }                               │
+     │ }                                  │
+     └────┬───────────────────────────────┘
+          │
+          │ Has tool_calls?
+          │
+     ┌────┴────┐
+     │ YES     │ NO
+     ▼         ▼
+┌─────────┐ ┌─────────────────┐
+│Extract  │ │Return Response  │
+│Tool     │ │Directly to User │
+│Calls    │ └─────────────────┘
+└────┬────┘
+     │
+     ├─ tool_name = tool_call["function"]["name"]
+     ├─ arguments = tool_call["function"]["arguments"]
+     │
+     ▼
+┌──────────────────────────────────┐
+│ Execute Tool from Registry       │
+│                                  │
+│ result = tool_registry[          │
+│   tool_name                      │
+│ ](**arguments)                   │
+│                                  │
+└────┬─────────────────────────────┘
+     │
+     ▼
+┌──────────────────────────────────┐
+│ Call Ollama Again with Results   │
+│                                  │
+│ ollama_chat(                     │
+│   model=model,                   │
+│   messages=[...previous + result]│
+│ )                                │
+└────┬─────────────────────────────┘
+     │
+     ▼
+┌──────────────────────────────────┐
+│ Return Final Response            │
+│ - final_message                  │
+│ - tools_used: [tool_name, ...]   │
+└──────────────────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 3: ADVANCED AGENT FLOW - Query Decomposition
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                         ┌──────────────────────────┐
+                         │  Agent.ask()             │
+                         │  Input: user_input       │
+                         └──────────┬───────────────┘
+                                    │
+                        ┌───────────┼───────────┐
+                        │           │           │
+                        ▼           ▼           ▼
+                   ┌─────────┐  ┌────────┐  ┌──────────┐
+                   │ Create  │  │ Create │  │Create    │
+                   │AskSession│ │Decompo-│  │TaskExec  │
+                   │(logging)│  │ser     │  │utor      │
+                   └─────────┘  └────────┘  └──────────┘
+                        │
+                        ▼
+           ┌─────────────────────────────────────┐
+           │ QueryDecomposer.decompose(query)    │
+           │ ────────────────────────────────    │
+           │ 1. Create system prompt             │
+           │ 2. Send to Ollama for decomposition│
+           │ 3. Parse JSON response             │
+           └────────┬────────────────────────────┘
+                    │
+                    ▼
+        ┌──────────────────────────────────┐
+        │ ollama_chat(                     │
+        │   model=model,                   │
+        │   system=decomposition_prompt,   │
+        │   messages=[                     │
+        │     {"role": "user",             │
+        │      "content": query}           │
+        │   ]                              │
+        │ )                                │
+        └────┬───────────────────────────────┘
+             │
+             ▼
+        ┌──────────────────────────────────┐
+        │ Parse Response:                  │
+        │ _extract_json()                  │
+        │ ↓                                │
+        │ Create ExecutionPlan with Tasks  │
+        └────┬───────────────────────────────┘
+             │
+             ├─ Task 1: Query_1, depends_on=[]
+             ├─ Task 2: Query_2, depends_on=[]
+             ├─ Task 3: Query_3, depends_on=[1,2]
+             └─ ... (more tasks)
+             │
+             ▼
+        ┌──────────────────────────────────┐
+        │ TaskExecutor.execute(plan)       │
+        │ ────────────────────────────    │
+        │ For each task in plan.tasks:     │
+        └────┬───────────────────────────────┘
+             │
+             ├─── Check if dependencies met
+             │
+             ▼
+        ┌──────────────────────────────────┐
+        │ resolve_placeholders(query)      │
+        │ Replace <TASK_X_RESULT>          │
+        │ with completed results           │
+        └────┬───────────────────────────────┘
+             │
+             ▼
+        ┌────────────────────────────────────────┐
+        │ Task.run(db, model, tool_registry)     │
+        │ ────────────────────────────────────  │
+        │ 1. db.route_query(resolved_query)     │
+        │ 2. Load suggested tools from disk     │
+        │ 3. Create messages array              │
+        │ 4. Call ollama_chat with tools        │
+        │ 5. Parse response and execute tools   │
+        │ 6. Aggregate results                  │
+        └────┬───────────────────────────────────┘
+             │
+             │
+             ├─► db.route_query(query)
+             │   ├─ Embed query: get_embedding(query)
+             │   ├─ Search ChromaDB: collection.query()
+             │   └─ Return: suggested_tools (List[str])
+             │
+             ├─► Load tool definitions
+             │   ├─ DBConnection._load_tool_docs_map()
+             │   ├─ Read *.json from capabilities/
+             │   └─ Return: {tool_name: tool_data}
+             │
+             ├─► Ollama chat with tools
+             │   └─ Execute tool if selected
+             │
+             ▼
+        ┌──────────────────────────────────┐
+        │ Return:                          │
+        │ - final_message (response)       │
+        │ - tools_used (List[str])         │
+        └──────────────────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 4: SIMPLE AGENT FLOW - ask_small() Method
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                         ┌─────────────────────────┐
+                         │  Agent.ask_small()      │
+                         │  Input: user_input      │
+                         └──────────┬──────────────┘
+                                    │
+                        ┌───────────┴───────────┐
+                        │                       │
+                        ▼                       ▼
+                   ┌─────────────┐      ┌──────────────┐
+                   │ Create      │      │Create        │
+                   │AskSession   │      │TaskExecutor  │
+                   └─────────────┘      └──────────────┘
+                        │
+                        ▼
+            ┌──────────────────────────────────┐
+            │ Create single Task with query    │
+            │ Task(id=1, query=user_input)     │
+            └────┬───────────────────────────────┘
+                 │
+                 ▼
+            ┌──────────────────────────────────┐
+            │ Create ExecutionPlan with Task   │
+            │ plan = ExecutionPlan([task])     │
+            └────┬───────────────────────────────┘
+                 │
+                 ▼
+            ┌──────────────────────────────────┐
+            │ TaskExecutor.execute(plan)       │
+            │ (Same as decomposed flow)        │
+            └──────────────────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 5: SIMPLE RUN FLOW - run() Method (Direct Tool Selection)
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                         ┌──────────────────────┐
+                         │  Agent.run()         │
+                         │  Input: user_input   │
+                         └──────────┬───────────┘
+                                    │
+                        ┌───────────┴───────────┐
+                        │                       │
+                        ▼                       ▼
+                   ┌─────────────┐        ┌──────────────┐
+                   │ Create      │        │DBConnection  │
+                   │AskSession   │        │query routing │
+                   └─────────────┘        └──────┬───────┘
+                                                 │
+                                    db.route_query(user_input)
+                                                 │
+                                    ┌────────────┴─────────────┐
+                                    │                          │
+                                    ▼                          ▼
+                                ┌──────────┐          ┌────────────────┐
+                                │Embed     │          │Query ChromaDB  │
+                                │Query     │          │collection      │
+                                └────┬─────┘          └────────┬───────┘
+                                     │                         │
+                                     └────────┬────────────────┘
+                                              │
+                                    ┌─────────┴──────────┐
+                                    │                    │
+                                    ▼                    ▼
+                               ┌──────────┐    ┌──────────────────┐
+                               │From Cache│    │From get_embedding│
+                               └──────────┘    └──────────────────┘
+                                    │
+                                    ▼
+                        ┌───────────────────────────────┐
+                        │ similarity.search()           │
+                        │ (cosine/l2/ip)               │
+                        │ Returns: suggested_tools      │
+                        └────┬───────────────────────────┘
+                             │
+                    ┌────────┴────────┐
+                    │                 │
+                    ▼                 ▼
+            ┌───────────────┐    ┌──────────────────┐
+            │Tools found    │    │"No confident     │
+            │               │    │ match" returned  │
+            └────┬──────────┘    └──────────────────┘
+                 │
+                 ▼
+        ┌────────────────────────────────────┐
+        │ Load tool_docs from disk           │
+        │ _load_tool_docs_map()              │
+        │ For each suggested_tool:           │
+        │ ├─ Read *.json from capabilities   │
+        │ ├─ Extract function definition     │
+        │ └─ Build tool_data structure       │
+        └────┬────────────────────────────────┘
+             │
+             ▼
+        ┌─────────────────────────────────┐
+        │ If tool found:                  │
+        │ selected_tools = [tool_data]    │
+        │ Else:                           │
+        │ selected_tools = []             │
+        └────┬────────────────────────────┘
+             │
+             ▼
+        ┌─────────────────────────────────┐
+        │ ollama_chat()                   │
+        │ ├─ model = user_input           │
+        │ ├─ messages = system + user     │
+        │ ├─ tools = selected_tools       │
+        │ └─ stream = False               │
+        └────┬────────────────────────────┘
+             │
+             ▼
+        ┌──────────────────────────────────┐
+        │ Extract message and tool_calls   │
+        │ from response                    │
+        └────┬───────────────────────────────┘
+             │
+        ┌────┴────┐
+        │ YES     │ NO (No tool_calls)
+        ▼         ▼
+    ┌────┐   ┌──────────────────┐
+    │Tool│   │Return Response   │
+    │Call│   │Directly to User  │
+    └─┬──┘   └──────────────────┘
+      │
+      ├─ Extract tool_name from tool_call
+      ├─ Extract arguments from tool_call
+      │
+      ▼
+    ┌──────────────────────────────┐
+    │ Execute tool from registry   │
+    │ tool_registry[tool_name]     │
+    │ (**arguments)                │
+    └────┬───────────────────────────┘
+         │
+         ▼
+    ┌─────────────────────────────┐
+    │ Handle result or exception  │
+    │ - Success: continue         │
+    │ - Error: return error msg   │
+    └──────────────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 6: DATABASE AND EMBEDDING OPERATIONS
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                    ┌────────────────────────────────────┐
+                    │  DBConnection                      │
+                    │ ────────────────────────────────   │
+                    │ Manages ChromaDB for tool lookup   │
+                    └────┬───────────────────────────────┘
+                         │
+        ┌────────────────┬┴─────────────────┬────────────────┐
+        │                │                  │                │
+        ▼                ▼                  ▼                ▼
+    ┌────────┐      ┌──────────┐     ┌──────────────┐  ┌─────────────┐
+    │ __init │      │update_db │     │route_query   │  │_add_tool    │
+    │        │      │          │     │              │  │             │
+    └────────┘      └──────────┘     └──────────────┘  └─────────────┘
+        │                │                  │                │
+        │                │                  │                │
+        ▼                ▼                  ▼                ▼
+    ┌────────────┐ ┌──────────────┐ ┌─────────────────┐ ┌───────────────┐
+    │Initialize  │ │For each tool:│ │For input query: │ │Load tool from │
+    │ChromaDB    │ │ - Load JSON  │ │ - Get embedding │ │disk           │
+    │connection  │ │ - Load py    │ │ - Query Chroma  │ │ - Parse JSON  │
+    │ Chroma     │ │ - Compute    │ │ - Return top K  │ │ - Compute     │
+    │.Persistent │ │   embedding  │ │   similar tools │ │   embedding   │
+    │Client()    │ │ - Add to DB  │ │                 │ │ - Add to Chroma
+    └─┬──────────┘ └──────────────┘ └─────────────────┘ └───────────────┘
+      │                  │                  │                │
+      ▼                  ▼                  ▼                ▼
+    ┌──────────────────────────────────────────────┐      ┌─────────┐
+    │ ChromaDB Collection                          │      │Embeddings
+    │ (tool_embeddings)                            │      │Cache    │
+    │                                              │      │.tool_   │
+    │ Stores:                                      │      │embeddings
+    │ - Tool name (metadata)                       │      │_cache   │
+    │ - Embedding vectors                          │      │.json    │
+    │ - Domain, description, examples              │      └─────────┘
+    │ - Example user queries                       │
+    │ - Hierarchical organization by category      │
+    └──────────────────────────────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 7: OLLAMA WRAPPER AND LOGGING
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                     ┌──────────────────────────────┐
+                     │  ollama_wrapper.py           │
+                     │ ────────────────────────────│
+                     │ Abstracts Ollama API access  │
+                     └────┬───────────────────────────┘
+                          │
+        ┌─────────────────┬┴────────────────┬──────────────┐
+        │                 │                 │              │
+        ▼                 ▼                 ▼              ▼
+    ┌──────────┐    ┌──────────┐    ┌──────────────┐  ┌──────────┐
+    │chat_     │    │AskSession│    │OllamaLogger  │  │make_     │
+    │wrapper() │    │(context  │    │              │  │serializ- │
+    │          │    │manager)  │    │              │  │able()    │
+    └────┬─────┘    └────┬─────┘    └────┬─────────┘  └────┬─────┘
+         │               │               │                 │
+         │               │               │                 │
+    ┌────┴──────────┐   │           ┌───┴───────────┐   ┌─┴───┐
+    │1. Parse input │   │           │ Initialize   │   │Convert
+    │2. Validate    │   │           │ SQLite DB    │   │objects
+    │3. Prepare     │   │           │ Tables:      │   │to JSON
+    │   messages    │   │           │ -ask_sessions│   │serializable
+    │4. Add/validate│   │           │ -ollama_calls│   │dicts
+    │   tools       │   │           └──────┬───────┘   └───┬─┘
+    │5. Send POST   │   │                  │               │
+    └────┬──────────┘   │                  ▼               │
+         │              │          ┌──────────────────┐   │
+         ▼              │          │log_ask_session() │   │
+    ┌──────────────┐    │          │ Insert into DB   │   │
+    │POST to       │    │          └──────────────────┘   │
+    │http://       │    │                                  │
+    │localhost:    │    │          ┌─────────────────┐     │
+    │11434/api/    │    │          │log_call()       │     │
+    │chat          │    │          │ Insert into DB: │     │
+    │              │    │          │ - model         │     │
+    │Headers:      │    │          │ - messages      │     │
+    │Content-Type: │    │          │ - tools used    │     │
+    │application/  │    │          │ - duration      │     │
+    │json          │    │          │ - response      │     │
+    └────┬─────────┘    │          └────────┬────────┘     │
+         │              │                   │              │
+         ▼              │                   ▼              │
+    ┌────────────────┐  │          ┌──────────────────┐   │
+    │Ollama Response │  │          │make_serializable │◄──┘
+    │{               │  │          │(response)        │
+    │ "message": {   │  │          │ Recursively      │
+    │  "content": "" │  │          │ convert objects  │
+    │  "tool_calls"  │  │          │ to dicts         │
+    │ },             │  │          └──────────────────┘
+    │ "done": true,  │  │                  │
+    │ "done_reason"  │  │                  ▼
+    │ "eval_count"   │  │          ┌──────────────────┐
+    │}               │  │          │Store in DB       │
+    └────┬───────────┘  │          │Handle errors     │
+         │              │          │Log timestamps    │
+         ▼              │          └──────────────────┘
+    ┌──────────────────┐ │
+    │Return Response   │ │
+    │to caller         │ │
+    └──────────────────┘ │
+                         │
+                         ▼
+                    ┌──────────────┐
+                    │on_close/     │
+                    │__exit__      │
+                    │from context  │
+                    │manager       │
+                    └──────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 8: FILE TRACKER - CHANGE DETECTION
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                     ┌─────────────────────────────┐
+                     │  FileTracker                │
+                     │ ────────────────────────    │
+                     │ Detects file changes        │
+                     └────┬───────────────────────┘
+                          │
+        ┌─────────────────┬┴──────────────┬────────────┐
+        │                 │              │            │
+        ▼                 ▼              ▼            ▼
+    ┌──────────┐    ┌──────────┐   ┌───────────┐  ┌────────┐
+    │ __init   │    │_init_db()│   │get_file_  │  │get_tool│
+    │          │    │          │   │changes()  │  │registry│
+    │          │    │          │   │           │  │()      │
+    └────┬─────┘    └────┬─────┘   └─────┬─────┘  └────┬───┘
+         │               │               │             │
+         │               │               │             │
+    ┌────┴────────┐  ┌───┴──────────┐   │        ┌────┴─────┐
+    │Set paths:   │  │Create tables │   │        │Load all  │
+    │- base_dir   │  │- tools       │   │        │.py & .json
+    │- capab.     │  │- change_log  │   │        │files as  │
+    │  folder     │  │ SQLite DB    │   │        │callables │
+    │- funcs.     │  └───────────────┘   │        │          │
+    │  folder     │                      │        │Map to    │
+    └─────────────┘                      │        │registry  │
+                                         │        └────┬─────┘
+                                         │             │
+                                    ┌────┴─────────┐   │
+                                    │              │   │
+                                    ▼              ▼   ▼
+                          ┌─────────────────────────────┐
+                          │Scan VectorRoute-Tools/      │
+                          │├─ capabilities/*.json       │
+                          │└─ functions/*.py            │
+                          └────┬───────────────────────┘
+                               │
+                               ▼
+                          ┌──────────────────┐
+                          │For each file:    │
+                          │ 1. Read content  │
+                          │ 2. Compute SHA256│
+                          │ 3. Compare with  │
+                          │    database hash │
+                          └────┬─────────────┘
+                               │
+                          ┌────┴────┬────────┬────────┐
+                          │         │        │        │
+                          ▼         ▼        ▼        ▼
+                       ┌───┐   ┌─────┐  ┌────┐   ┌──────┐
+                       │New│   │Modif│  │Delet│   │Unmodif
+                       │   │   │ied  │  │ ed  │   │ied   │
+                       └─┬─┘   └──┬──┘  └──┬─┘   └──────┘
+                         │       │       │
+                         │       │       │
+                    ┌────┴──┬────┴──┬────┴───┐
+                    │       │       │        │
+                    ▼       ▼       ▼        ▼
+                 ┌─────────────────────────────────┐
+                 │Return Change Summary:           │
+                 │{                                │
+                 │  "new_tools": set([...]),      │
+                 │  "modified_tools": set([...]), │
+                 │  "deleted_tools": set([...]),  │
+                 │  "unchanged_tools": set([...]) │
+                 │}                                │
+                 └─────────────────────────────────┘
+                 │
+                 │ Log to change_log table
+                 ▼
+            ┌─────────────────────┐
+            │SQLite change_log    │
+            │- file_key           │
+            │- change_type        │
+            │- old_hash           │
+            │- new_hash           │
+            │- changed_at         │
+            └─────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 9: COMPLETE INTERACTION FLOW - User Query to Response
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                            USER INPUT
+                                │
+                                ▼
+            ┌───────────────────────────────────────┐
+            │  User Query: "What is the weather"    │
+            └────────────┬────────────────────────┘
+                         │
+                    CHOOSE EXECUTION MODE
+                         │
+          ┌──────────────┼──────────────┬────────────┐
+          │              │              │            │
+    (Run) │         (ask)│        (ask_ │            │
+          │              │        small)│            │
+          ▼              ▼              ▼            ▼
+      ┌─────┐    ┌──────────┐   ┌──────────┐   [Other]
+      │ .run│    │ .ask()   │   │.ask_small│
+      │     │    │ (decomp) │   │(simple)  │
+      └──┬──┘    └────┬─────┘   └────┬─────┘
+         │             │              │
+         │         ┌───┴──────────────┘
+         │         │
+         │         ▼
+         │    ┌──────────────────────────────────┐
+         │    │ 1. QueryDecomposer.decompose()   │
+         │    │    - Send to Ollama              │
+         │    │    - Parse JSON response         │
+         │    │    - Create task objects         │
+         │    └────┬─────────────────────────────┘
+         │         │
+         │         │┌─────────────────────────────┐
+         │         ││ Result: ExecutionPlan       │
+         │         ││ - List of Task objects      │
+         │         ││ - Dependencies between task │
+         │         │└──────────┬──────────────────┘
+         │         │           │
+         │         ▼           ▼
+         │    ┌─────────────────────────────────┐
+         └───►│ 2. db.route_query(query)        │
+             │    - db.get_embedding(query)    │
+             │    - db.similarity_search()     │
+             │    - Return: suggested_tools    │
+             └────┬────────────────────────────┘
+                  │
+                  ▼
+         ┌───────────────────────────────┐
+         │ 3. Load tool definitions      │
+         │    from VectorRoute-Tools/    │
+         │    capabilities/weather/.*json│
+         └────┬───────────────────────────┘
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 4. Call ollama_chat()          │
+         │    - model                     │
+         │    - messages (with context)   │
+         │    - tools (matching tools)    │
+         └────┬───────────────────────────┘
+              │
+              ▼ (Ollama Instance)
+         ┌────────────────────────────────┐
+         │  Process at Ollama Server      │
+         │  (localhost:11434)             │
+         │  - Decide which tools to use   │
+         │  - Generate arguments          │
+         │  - Return structured response  │
+         └────┬───────────────────────────┘
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 5. Parse tool_calls            │
+         │    from response               │
+         └────┬───────────────────────────┘
+              │
+              ├─ YES tool_calls found
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 6. Execute Tool                │
+         │    tool_registry[tool_name]    │
+         │    (**arguments)               │
+         │    E.g., get_current_weather() │
+         │    with city="New York"        │
+         └────┬───────────────────────────┘
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 7. Tool Returns Result         │
+         │    E.g., "Sunny, 72°F"         │
+         └────┬───────────────────────────┘
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 8. Send results back to Ollama │
+         │    messages + tool results     │
+         └────┬───────────────────────────┘
+              │
+              ▼ (Ollama Instance)
+         ┌────────────────────────────────┐
+         │ 9. Ollama generates final      │
+         │    response with results       │
+         │    "The weather in NY is..."   │
+         └────┬───────────────────────────┘
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 10. Return (response, tools)   │
+         │     tools = ["weather.get_..."]│
+         └────┬───────────────────────────┘
+              │
+              ▼
+         ┌────────────────────────────────┐
+         │ 11. Log to SQLite DB via       │
+         │     OllamaLogger               │
+         │     - ask_session              │
+         │     - ollama_calls             │
+         │     - timestamps               │
+         └────┬───────────────────────────┘
+              │
+              ▼
+          ┌─────────────────┐
+          │ USER SEES       │
+          │ RESPONSE        │
+          └─────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 10: CLASS HIERARCHY AND INHERITANCE
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+                           ┌─────────────────────┐
+                           │  ABC (Abstract)     │
+                           │  (from abc module)  │
+                           └──────────┬──────────┘
+                                      │
+                                      │ inherits
+                                      ▼
+                           ┌─────────────────────┐
+                           │  BaseAgent          │
+                           │ ─────────────────── │
+                           │ @abstractmethod     │
+                           │ run(query: str)     │
+                           │                     │
+                           │ Attributes:         │
+                           │ - tool_selector     │
+                           │ - vectordb          │
+                           └──────────┬──────────┘
+                                      │
+                                      │ inherits (not directly shown, but pattern)
+                                      ▼
+                           ┌─────────────────────┐
+                           │  Agent              │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ run()               │
+                           │ ask()               │
+                           │ ask_small()         │
+                           │                     │
+                           │ Attributes:         │
+                           │ - model             │
+                           │ - tracker           │
+                           │ - db                │
+                           │ - tool_registry     │
+                           └─────────────────────┘
+
+                           ┌─────────────────────┐
+                           │  ClassicalAgent     │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ run()               │
+                           │                     │
+                           │ Attributes:         │
+                           │ - tool_registry     │
+                           │ - tools_embeddings  │
+                           │ - model             │
+                           └─────────────────────┘
+
+
+                           ┌─────────────────────┐
+                           │  QueryDecomposer    │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ decompose()         │
+                           │ _extract_json()     │
+                           │                     │
+                           │ Attributes:         │
+                           │ - model             │
+                           └─────────────────────┘
+
+                           ┌─────────────────────┐
+                           │  TaskExecutor       │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ execute()           │
+                           │ resolve_            │
+                           │ placeholders()      │
+                           │                     │
+                           │ Attributes:         │
+                           │ - model             │
+                           │ - small_context     │
+                           └─────────────────────┘
+
+                           ┌─────────────────────┐
+                           │  Task               │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ run()               │
+                           │ write_message_      │
+                           │ to_file()           │
+                           │                     │
+                           │ Attributes:         │
+                           │ - id                │
+                           │ - query             │
+                           │ - depends_on        │
+                           │ - status            │
+                           │ - result            │
+                           │ - tools_used        │
+                           │ - messages          │
+                           └─────────────────────┘
+
+                           ┌─────────────────────┐
+                           │  ExecutionPlan      │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ is_complete()       │
+                           │                     │
+                           │ Attributes:         │
+                           │ - tasks: List[Task] │
+                           └─────────────────────┘
+
+
+                           ┌─────────────────────┐
+                           │  FileTracker        │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ _init_db()          │
+                           │ _compute_file_hash()
+                           │ get_file_changes()  │
+                           │ get_tool_registry() │
+                           │                     │
+                           │ Attributes:         │
+                           │ - base_dir          │
+                           │ - db_path           │
+                           │ - capabilities_folder
+                           │ - functions_folder  │
+                           │ - conn (SQLite)     │
+                           └─────────────────────┘
+
+
+                           ┌─────────────────────┐
+                           │  DBConnection       │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ route_query()       │
+                           │ update_db()         │
+                           │ _add_tool()         │
+                           │ _load_tool_docs_map│
+                           │ load_tool_context() │
+                           │                     │
+                           │ Attributes:         │
+                           │ - client (ChromaDB) │
+                           │ - collection        │
+                           │ - capabilities_     │
+                           │   folder            │
+                           └─────────────────────┘
+
+
+                           ┌─────────────────────┐
+                           │  OllamaLogger       │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ _init_db()          │
+                           │ log_ask_session()   │
+                           │ log_call()          │
+                           │                     │
+                           │ Attributes:         │
+                           │ - db_path           │
+                           └─────────────────────┘
+
+
+                           ┌─────────────────────┐
+                           │  AskSession         │
+                           │ ─────────────────── │
+                           │ __init__()          │
+                           │ __enter__()         │
+                           │ __exit__()          │
+                           │ (Context Manager)   │
+                           │                     │
+                           │ Attributes:         │
+                           │ - ask_id            │
+                           │ - user_input        │
+                           │ - model             │
+                           └─────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 11: KEY FUNCTION SIGNATURES AND CALL PATTERNS
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+  Agent.__init__(model, db=None, tracker=None)
+       ├─► FileTracker() or tracker
+       ├─► DBConnection() or db
+       ├─► tracker.get_file_changes() → Dict of changes
+       ├─► db.update_db(changes=changes)
+       └─► tracker.get_tool_registry() → Dict[str, callable]
+
+
+  Agent.run(user_input: str) → Tuple[response, List[str]]
+       ├─► AskSession(user_input, model)
+       ├─► db.route_query(user_input) → List[str] (tool names)
+       ├─► DBConnection._load_tool_docs_map() → Dict[str, tuple]
+       ├─► ollama_chat(model, messages, tools) → response
+       ├─► Extract tool_calls from response
+       ├─► tool_registry[tool_name](**arguments) → result
+       ├─► ollama_chat(...with result...) → final_response
+       └─► OllamaLogger.log_call(...) → SQLite insert
+
+
+  Agent.ask(user_input: str) → Tuple[response, List[str]]
+       ├─► AskSession(user_input, model)
+       ├─► QueryDecomposer(model).decompose(user_input, messages)
+       │         ├─► ollama_chat(model, system_prompt, user_input)
+       │         ├─► _extract_json(response_content) → dict
+       │         └─► ExecutionPlan([Task, Task, ...])
+       ├─► TaskExecutor(model).execute(plan, db, tool_registry)
+       │         ├─► For each Task in plan.tasks:
+       │         │    ├─► resolve_placeholders(task.query)
+       │         │    ├─► task.run(db, model, tool_registry)
+       │         │    │    ├─► db.route_query(resolved_query)
+       │         │    │    ├─► DBConnection._load_tool_docs_map()
+       │         │    │    ├─► ollama_chat(model, messages, tools)
+       │         │    │    ├─► Extract & execute tool_calls
+       │         │    │    └─► Return (result, tools_used)
+       │         │    └─► Mark task.status = "completed"
+       │         └─► Return aggregated (final_response, all_tools_used)
+       └─► Return final_message, tools_used
+
+
+  DBConnection.route_query(user_input: str) → List[str]
+       ├─► embedding.get_embedding(user_input) → Vector
+       ├─► self.collection.query(query_embeddings=[vector], n_results=K)
+       └─► Return list of matching tool names
+
+
+  DatabaseConnection.update_db(changes: Dict)
+       ├─► For each tool in changes["new_tools"]:
+       │    ├─► _load_tool_docs_map() → get tool data
+       │    └─► _add_tool(tool_name, tool_data)
+       │         ├─► Load capability JSON
+       │         ├─► For each facet (description, domain, examples):
+       │         │    ├─► embedding.get_embedding(facet_text)
+       │         │    └─► collection.add(...)
+       │         └─► Update tools table in SQLite
+       └─► Similar for modified_tools and deleted_tools
+
+
+  FileTracker.get_file_changes() → Dict[str, set]
+       ├─► Scan VectorRoute-Tools/capabilities/*.json
+       ├─► Scan VectorRoute-Tools/functions/*.py
+       ├─► For each file:
+       │    ├─► _compute_file_hash(file_path) → SHA256
+       │    ├─► Query SQLite tools table for cached hash
+       │    ├─► Compare hashes
+       │    └─► Categorize as new/modified/deleted/unchanged
+       └─► Return {"new_tools": set, "modified_tools": set, ...}
+
+
+  FileTracker.get_tool_registry() → Dict[str, callable]
+       ├─► Load all .py files from functions/ folder
+       ├─► Dynamically import each module
+       ├─► Extract callable functions
+       └─► Return {tool_name: function_reference}
+
+
+  ollama_chat(model, messages, tools=None, stream=False) → response
+       ├─► POST to http://localhost:11434/api/chat
+       ├─► Request body:
+       │    ├─ model: str
+       │    ├─ messages: List[Dict]
+       │    ├─ tools: List[Dict] (optional)
+       │    └─ stream: bool
+       ├─► Get response JSON
+       ├─► make_serializable(response) → ensure JSON-compatible
+       ├─► OllamaLogger.log_call(...) → SQLite insert
+       └─► Return response dict with "message", "done", etc.
+
+
+  QueryDecomposer.decompose(user_query, messages) → ExecutionPlan
+       ├─► Create system_prompt (instructions for task decomposition)
+       ├─► ollama_chat(model=self.model, messages=[system_prompt + user_input])
+       ├─► Extract response content
+       ├─► _extract_json(content) → dict of tasks
+       ├─► For each task in dict:
+       │    └─► Create Task(id, query, depends_on=[...])
+       └─► Return ExecutionPlan(tasks)
+
+
+  Task.run(db, model, tool_registry) → bool
+       ├─► db.route_query(self.query) → suggested_tools
+       ├─► DBConnection._load_tool_docs_map() → tool_docs
+       ├─► Build selected_tools list from tool_docs
+       ├─► ollama_chat(model, self.messages, tools=selected_tools)
+       ├─► If tool_calls in response:
+       │    ├─► For each tool_call:
+       │    │    ├─► Extract tool_name and arguments
+       │    │    ├─► result = tool_registry[tool_name](**arguments)
+       │    │    ├─► Append result message to self.messages
+       │    │    └─► Add tool_name to self.tools_used
+       │    └─► ollama_chat again with context
+       ├─► self.result = extracted_result
+       ├─► self.status = "completed"
+       └─► Return True if successful
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ PART 12: DATA FLOW SUMMARY TABLE
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+┌─────────────┬──────────────┬────────────────────┬─────────────────────────────────────────┐
+│ From        │ To           │ Via Method/Function│ Data Passed                             │
+├─────────────┼──────────────┼────────────────────┼─────────────────────────────────────────┤
+│ main.py     │ Agent        │ Agent.__init__()   │ model: str, db: DBConnection, tracker   │
+│ Agent       │ FileTracker  │ tracker.get_       │ None (direct call)                      │
+│             │              │ file_changes()     │                                         │
+│ Agent       │ DBConnection │ db.update_db()     │ changes: Dict[str, set]                 │
+│ Agent       │ Agent        │ .run()             │ user_input: str                         │
+│ Agent       │ DBConnection │ db.route_query()   │ user_input: str                         │
+│ DBConnection│ Chroma       │ collection.query() │ query_embeddings: List[Vector]          │
+│ Agent       │ Ollama       │ ollama_chat()      │ model, messages, tools (optional)       │
+│ Ollama      │ Agent        │ response JSON      │ message, done, eval_count, tool_calls   │
+│ Agent       │ Tool Registry│ tool_registry[]()  │ **arguments from tool_call              │
+│ Tool        │ Agent        │ return statement   │ result: Any (tool-specific)             │
+│ Agent       │ OllamaLogger │ log_call()         │ model, messages, tools, response, etc.  │
+│ OllamaLogger│ SQLite DB    │ cursor.execute()   │ INSERT statements with serialized JSON  │
+│ Main        │ Verification │ verify_queries()   │ csv_path: str, agent, limit: int        │
+│ Main        │ CLI output   │ print()            │ results: List[Tuple]                    │
+└─────────────┴──────────────┴────────────────────┴─────────────────────────────────────────┘
+
+
+
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+ LEGEND AND SYMBOLS
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+╔═════╗    = Class or Component
+║ BOX ║
+╚═════╝
+
+  ─────► = Function call with parameters
+    └─► = Sub-function or related call
+    │    = Data flow or sequence
+    ▼    = Next step or return
+    ◄    = Feedback or return value
+
+Data structures:
+  List[T]   = Python list of type T
+  Dict[K,V] = Python dictionary with key type K, value type V
+  Tuple     = Fixed-size ordered collection
+  set       = Unordered collection of unique items
+  Optional  = May be None
+  →         = Returns type arrow
+
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════

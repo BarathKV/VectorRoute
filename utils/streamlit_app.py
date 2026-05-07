@@ -1,3 +1,8 @@
+import sys
+import os
+
+# Add the project root to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import streamlit as st
 from agent.agent import Agent
 from typing import List
@@ -127,7 +132,7 @@ def main():
         for name in sorted(tools):
             st.sidebar.write(f"- {name}")
 
-    st.title("VectorRoute — Agent Chat UI")
+    st.title("Embedding based tool routing LLM")
 
     # Chat UI
     for message in st.session_state.messages:
@@ -148,7 +153,8 @@ def main():
             else:
                 with st.spinner("Thinking..."):
                     try:
-                        final_message, tools_used = st.session_state.agent.ask(prompt)
+                        # final_message, tools_used = st.session_state.agent.ask(prompt)
+                        final_message, tools_used = st.session_state.agent.ask_small(prompt)
                         # The agent.ask returns a message dict or object
                         if isinstance(final_message, dict):
                             response = final_message.get("content", str(final_message))

@@ -60,8 +60,8 @@ class Task:
                 tools=selected_tools if selected_tools else None,
             )
 
-            # print(f"DEBUG: LLM response: {response}")
-            # print(f"DEBUG: response.dict(): {response.dict()}")8
+            print(f"DEBUG: LLM response: {response}")
+            print(f"DEBUG: response.dict(): {response.dict()}")8
             current_message = response["message"]
 
             self.message.append(current_message)
